@@ -1,0 +1,394 @@
+"use client";
+
+import React, { useState, useEffect, useRef } from 'react';
+import { ChatMessage } from '../types';
+import { useElevenLabs } from '../hooks/useElevenLabs';
+
+interface IntakeDashboardProps {
+    onAnalyze: () => void;
+    policyId: string;
+}
+
+export const IntakeDashboard: React.FC<IntakeDashboardProps> = ({ onAnalyze, policyId }) => {
+    const [messages, setMessages] = useState<ChatMessage[]>([]); // Start empty
+    const [inputText, setInputText] = useState('');
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [hasConfirmed, setHasConfirmed] = useState(false);
+    const [showAnalysisButton, setShowAnalysisButton] = useState(false);
+    const [recentLogs, setRecentLogs] = useState<string[]>([]);
+    const chatEndRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const { speak } = useElevenLabs();
+
+    useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
+
+    const handleUploadClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        setIsProcessing(true);
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+            // First upload the file and get extracted data
+            const uploadRes = await fetch('http://localhost:8000/api/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (uploadRes.ok) {
+                const uploadData = await uploadRes.json();
+                const billData = uploadData.bill_data || {};
+
+                // Build a message that includes the extracted data
+                let extractedInfo = `I just uploaded a document called ${file.name}.`;
+                if (billData.total && billData.total > 0) {
+                    extractedInfo += ` I can see it shows a total of $${billData.total.toFixed(2)}.`;
+                }
+                if (billData.services && billData.services.length > 0) {
+                    extractedInfo += ` The services listed are: ${billData.services.join(', ')}.`;
+                }
+                if (billData.date && billData.date !== 'Unknown') {
+                    extractedInfo += ` The date of service is ${billData.date}.`;
+                }
+                if (billData.provider && billData.provider !== 'Unknown') {
+                    extractedInfo += ` The provider is ${billData.provider}.`;
+                }
+                extractedInfo += ` Please summarize these details and ask me to confirm if they are correct.`;
+
+                // Now ask Gemini to respond about the extracted data
+                const chatRes = await fetch('http://localhost:8000/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        policy_id: policyId,
+                        message: extractedInfo,
+                        history: []
+                    })
+                });
+
+                const data = await chatRes.json();
+
+                const uploadMsg: ChatMessage = {
+                    id: Date.now().toString(),
+                    role: 'model',
+                    text: data.response,
+                    timestamp: Date.now()
+                };
+                setMessages([uploadMsg]);
+                speak(data.response);
+            } else {
+                console.error("Upload failed");
+            }
+        } catch (error) {
+            console.error("Error uploading file:", error);
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleSend = async () => {
+        if (!inputText.trim() || isProcessing) return;
+
+        const userMsg: ChatMessage = {
+            id: Date.now().toString(),
+            role: 'user',
+            text: inputText,
+            timestamp: Date.now()
+        };
+
+        setMessages(prev => [...prev, userMsg]);
+        setInputText('');
+        setIsProcessing(true);
+
+        if (inputText.toLowerCase().includes('yes') || inputText.toLowerCase().includes('confirm') || inputText.toLowerCase().includes('correct')) {
+            setHasConfirmed(true);
+            setTimeout(() => setShowAnalysisButton(true), 2000);
+        }
+
+        try {
+            // Build conversation history for context
+            const history = messages.map(m => ({
+                role: m.role === 'user' ? 'user' : 'assistant',
+                content: m.text
+            }));
+
+            // Call Python Backend with history
+            const res = await fetch('http://localhost:8000/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    policy_id: policyId,
+                    message: inputText,
+                    history: history
+                })
+            });
+
+            const data = await res.json();
+            const responseText = data.response;
+
+            if (data.logs) {
+                setRecentLogs(data.logs);
+            }
+
+            const modelMsg: ChatMessage = {
+                id: (Date.now() + 1).toString(),
+                role: 'model',
+                text: responseText,
+                timestamp: Date.now()
+            };
+            setMessages(prev => [...prev, modelMsg]);
+
+            // Speak response
+            speak(responseText);
+
+        } catch (e) {
+            console.error(e);
+            const fallbackMsg: ChatMessage = {
+                id: (Date.now() + 1).toString(),
+                role: 'model',
+                text: "I am having trouble reaching the Actuary Node. Please check if the Python backend is running.",
+                timestamp: Date.now()
+            };
+            setMessages(prev => [...prev, fallbackMsg]);
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleKeyPress = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') handleSend();
+    };
+
+    return (
+        <div className="flex flex-col h-screen w-full overflow-hidden bg-background dark:bg-background-dark">
+            {/* Top Navigation */}
+            <header className="flex items-center justify-between whitespace-nowrap border-b border-solid border-b-[#28392e] px-8 py-4 bg-[#111813] z-20 shrink-0">
+                <div className="flex items-center gap-4 text-white">
+                    <div className="size-8 flex items-center justify-center text-primary">
+                        <span className="material-symbols-outlined text-3xl">health_and_safety</span>
+                    </div>
+                    <h2 className="text-white text-xl font-bold leading-tight tracking-[-0.015em]">Salus</h2>
+                </div>
+                <div className="flex items-center gap-8">
+                    <nav className="hidden md:flex items-center gap-9">
+                        <a href="#" className="text-white text-sm font-medium leading-normal hover:text-primary transition-colors">Dashboard</a>
+                        <a href="#" className="text-white text-sm font-medium leading-normal hover:text-primary transition-colors">History</a>
+                        <a href="#" className="text-white text-sm font-medium leading-normal hover:text-primary transition-colors">Settings</a>
+                    </nav>
+                    <div className="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 border-2 border-[#28392e] bg-gray-700">
+                        <span className="flex h-full w-full items-center justify-center text-xs text-white">JD</span>
+                    </div>
+                </div>
+            </header>
+
+            {/* Main Split Layout */}
+            <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
+                {/* LEFT COLUMN: Evidence Collection */}
+                <section className="hidden lg:flex lg:col-span-5 flex-col border-r border-[#28392e] bg-[#111813] overflow-y-auto no-scrollbar relative">
+                    <div className="p-8 pb-32 flex flex-col gap-8 max-w-xl mx-auto w-full">
+                        <div>
+                            <h2 className="text-2xl font-bold leading-tight tracking-tight text-white mb-2">Evidence Collection</h2>
+                            <p className="text-slate-400 text-sm">Verify your coverage details and upload documents.</p>
+                        </div>
+
+                        {/* Hidden File Input */}
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleFileChange}
+                            className="hidden"
+                            accept="image/*,.pdf,.heic,.heif"
+                        />
+
+                        {/* Upload Zone */}
+                        <div
+                            onClick={handleUploadClick}
+                            className="group relative flex flex-col items-center justify-center gap-4 rounded-3xl border-2 border-dashed border-[#3b5443] bg-[#16211b] p-10 transition-all hover:border-primary hover:bg-[#1a2820] cursor-pointer"
+                        >
+                            <div className="rounded-full bg-[#28392e] p-4 text-primary transition-colors group-hover:bg-primary group-hover:text-[#102216]">
+                                <span className="material-symbols-outlined text-3xl">upload_file</span>
+                            </div>
+                            <div className="text-center">
+                                <p className="text-white text-lg font-bold mb-1">Upload Hospital Bill</p>
+                                <p className="text-slate-400 text-sm">Drag & drop or click to browse</p>
+                            </div>
+                        </div>
+
+                        {/* Privacy Badge */}
+                        <div className="flex items-center justify-center gap-2 rounded-full bg-[#16211b] py-2 px-4 w-fit mx-auto border border-[#28392e]">
+                            <span className="material-symbols-outlined text-[#9db9a6] text-sm">lock</span>
+                            <span className="text-[#9db9a6] text-xs font-medium tracking-wide">End-to-End Encrypted | HIPAA Compliant</span>
+                        </div>
+
+                        <div className="h-px bg-[#28392e] w-full"></div>
+
+                        {/* Insurance Card */}
+                        <div className="flex flex-col gap-6">
+                            <h3 className="text-lg font-bold text-white">Insurance Details</h3>
+                            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1e3a29] to-[#111813] p-6 border border-[#28392e] shadow-xl">
+                                <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-primary/10 blur-2xl"></div>
+                                <div className="relative z-10 flex flex-col gap-5">
+                                    <div className="flex flex-col gap-2">
+                                        <label className="text-xs font-semibold uppercase tracking-wider text-primary/80 ml-1">Provider</label>
+                                        <div className="relative">
+                                            <select className="w-full appearance-none rounded-xl border-0 bg-[#0b120e]/50 py-3 pl-4 pr-10 text-white placeholder-slate-400 ring-1 ring-[#3b5443] focus:ring-2 focus:ring-primary text-sm font-medium outline-none">
+                                                <option>Sun Life Financial</option>
+                                                <option>Manulife</option>
+                                                <option>Blue Cross</option>
+                                            </select>
+                                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
+                                                <span className="material-symbols-outlined">expand_more</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <label className="text-xs font-semibold uppercase tracking-wider text-primary/80 ml-1">Policy ID</label>
+                                        <div className="relative">
+                                            <input
+                                                className="w-full rounded-xl border-0 bg-[#0b120e]/30 py-3 pl-4 pr-12 text-white/50 placeholder-slate-400 ring-1 ring-[#3b5443] focus:ring-2 focus:ring-primary text-sm font-medium tracking-widest outline-none cursor-not-allowed"
+                                                type="password"
+                                                value={policyId}
+                                                readOnly
+                                                title="Policy ID retrieved from secure vault"
+                                            />
+                                            <button className="absolute inset-y-0 right-0 flex items-center px-4 text-slate-400 hover:text-white transition-colors">
+                                                <span className="material-symbols-outlined text-lg">lock</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="mt-2 flex items-center justify-between opacity-50">
+                                        <div className="h-8 w-12 rounded bg-white/20"></div>
+                                        <span className="text-xs text-white">Salus Wallet</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* RIGHT COLUMN: The Guide */}
+                <section className="col-span-1 lg:col-span-7 relative flex flex-col bg-background-dark overflow-hidden">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-[#162b1e] via-[#102216] to-[#0b120e] opacity-80 pointer-events-none"></div>
+
+                    {/* Header */}
+                    <div className="relative z-10 flex items-center justify-between px-8 py-6">
+                        <div className="flex items-center gap-3">
+                            <div className="relative flex h-3 w-3">
+                                <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+                            </div>
+                            <span className="text-sm font-medium text-white tracking-wide uppercase opacity-80">Salus Guide Active</span>
+                        </div>
+                        <button className="p-2 text-slate-400 hover:text-white">
+                            <span className="material-symbols-outlined">more_horiz</span>
+                        </button>
+                    </div>
+
+                    {/* Chat Stream & Orb */}
+                    <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-6 pb-40 w-full max-w-4xl mx-auto overflow-y-auto no-scrollbar">
+
+                        {/* The Orb */}
+                        <div className="mb-8 relative flex items-center justify-center shrink-0">
+                            <div className={`absolute size-64 bg-primary/5 rounded-full blur-3xl transition-all duration-700 ${isProcessing ? 'scale-110 opacity-100' : 'scale-100 opacity-50'}`}></div>
+                            <div className="absolute size-48 bg-primary/10 rounded-full blur-2xl"></div>
+                            <div className="relative size-24 bg-gradient-to-b from-primary to-[#0da841] rounded-full orb-glow flex items-center justify-center shadow-[0_0_40px_rgba(19,236,91,0.4)]">
+                                <div className="flex items-center gap-1 h-8">
+                                    <div className={`w-1 bg-[#102216] rounded-full transition-all duration-300 ${isProcessing ? 'h-5 animate-bounce' : 'h-3'}`}></div>
+                                    <div className={`w-1 bg-[#102216] rounded-full transition-all duration-300 ${isProcessing ? 'h-8 animate-bounce delay-75' : 'h-6'}`}></div>
+                                    <div className={`w-1 bg-[#102216] rounded-full transition-all duration-300 ${isProcessing ? 'h-6 animate-bounce delay-150' : 'h-4'}`}></div>
+                                    <div className={`w-1 bg-[#102216] rounded-full transition-all duration-300 ${isProcessing ? 'h-8 animate-bounce delay-200' : 'h-7'}`}></div>
+                                    <div className={`w-1 bg-[#102216] rounded-full transition-all duration-300 ${isProcessing ? 'h-4 animate-bounce delay-300' : 'h-4'}`}></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Messages */}
+                        <div className="w-full flex flex-col gap-6 px-4 md:px-12 flex-1">
+                            {messages.map((msg) => (
+                                <div key={msg.id} className={`max-w-[80%] md:max-w-[70%] animate-fade-in-up ${msg.role === 'user' ? 'self-end' : 'self-start'}`}>
+                                    {msg.role === 'model' ? (
+                                        <div className="flex items-end gap-3">
+                                            <div className="size-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0 border border-primary/30 text-primary">
+                                                <span className="material-symbols-outlined text-sm">smart_toy</span>
+                                            </div>
+                                            <div className="bg-[#1e2e24] p-5 rounded-2xl rounded-bl-none border border-[#28392e] text-white shadow-lg">
+                                                <p className="leading-relaxed">{msg.text}</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-row-reverse items-end gap-3">
+                                            <div className="size-8 rounded-full bg-white/10 flex items-center justify-center shrink-0 border border-white/20 text-white bg-gray-600">
+                                                <span className="text-xs">JD</span>
+                                            </div>
+                                            <div className="bg-primary p-5 rounded-2xl rounded-br-none text-[#0b120e] shadow-lg shadow-primary/10">
+                                                <p className="leading-relaxed font-medium">{msg.text}</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+
+                            {isProcessing && (
+                                <div className="self-start max-w-[80%] mt-2">
+                                    <div className="flex items-center gap-2 text-slate-400 text-sm ml-12">
+                                        <span className="material-symbols-outlined text-lg animate-spin">sync</span>
+                                        <span>Analyzing coverage...</span>
+                                    </div>
+                                </div>
+                            )}
+                            <div ref={chatEndRef} />
+                        </div>
+
+                        {showAnalysisButton && (
+                            <div className="sticky bottom-0 mt-8 animate-fade-in-up">
+                                <button
+                                    onClick={() => onAnalyze()}
+                                    className="flex items-center gap-3 bg-gradient-to-r from-primary to-green-500 text-[#0b120e] px-8 py-3 rounded-full font-bold shadow-[0_0_30px_rgba(19,236,91,0.4)] hover:shadow-[0_0_50px_rgba(19,236,91,0.6)] transform hover:scale-105 transition-all"
+                                >
+                                    <span className="material-symbols-outlined">play_circle</span>
+                                    Run Actuary Engine
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Input Area */}
+                    <div className="absolute bottom-8 left-0 right-0 z-30 flex justify-center items-end px-4 gap-4">
+                        <div className="relative group w-full max-w-xl">
+                            <div className="absolute inset-0 bg-primary/5 rounded-full blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+                            <div className="flex items-center bg-[#16211b] border border-[#3b5443] rounded-full px-2 shadow-xl focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/50 transition-all">
+                                <input
+                                    type="text"
+                                    value={inputText}
+                                    onChange={(e) => setInputText(e.target.value)}
+                                    onKeyDown={handleKeyPress}
+                                    placeholder="Type your response or tap mic..."
+                                    className="flex-1 bg-transparent border-none text-white placeholder-slate-400 focus:ring-0 px-4 py-4 outline-none"
+                                />
+                                <button onClick={handleSend} className="p-2 bg-[#28392e] rounded-full text-white hover:bg-primary hover:text-black transition-colors cursor-pointer">
+                                    <span className="material-symbols-outlined">send</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="relative group shrink-0">
+                            <button className="relative flex items-center justify-center size-14 bg-primary text-[#0b120e] rounded-full shadow-[0_0_30px_rgba(19,236,91,0.3)] hover:shadow-[0_0_50px_rgba(19,236,91,0.5)] hover:scale-105 transition-all duration-300">
+                                <span className="material-symbols-outlined text-2xl">mic</span>
+                            </button>
+                        </div>
+                    </div>
+
+                </section>
+            </main>
+        </div>
+    );
+};
