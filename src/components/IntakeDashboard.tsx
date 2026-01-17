@@ -16,6 +16,9 @@ export const IntakeDashboard: React.FC<IntakeDashboardProps> = ({ onAnalyze, pol
     const [hasConfirmed, setHasConfirmed] = useState(false);
     const [showAnalysisButton, setShowAnalysisButton] = useState(false);
     const [recentLogs, setRecentLogs] = useState<string[]>([]);
+    const [showProfileMenu, setShowProfileMenu] = useState(false);
+    const [showSettingsModal, setShowSettingsModal] = useState(false);
+    const [showHistoryModal, setShowHistoryModal] = useState(false);
     const chatEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { speak } = useElevenLabs();
@@ -180,15 +183,144 @@ export const IntakeDashboard: React.FC<IntakeDashboardProps> = ({ onAnalyze, pol
                 </div>
                 <div className="flex items-center gap-8">
                     <nav className="hidden md:flex items-center gap-9">
-                        <a href="#" className="text-white text-sm font-medium leading-normal hover:text-primary transition-colors">Dashboard</a>
-                        <a href="#" className="text-white text-sm font-medium leading-normal hover:text-primary transition-colors">History</a>
-                        <a href="#" className="text-white text-sm font-medium leading-normal hover:text-primary transition-colors">Settings</a>
+                        <button
+                            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                            className="text-white text-sm font-medium leading-normal hover:text-primary transition-colors"
+                        >
+                            Dashboard
+                        </button>
+                        <button
+                            onClick={() => setShowHistoryModal(true)}
+                            className="text-white text-sm font-medium leading-normal hover:text-primary transition-colors"
+                        >
+                            History
+                        </button>
+                        <button
+                            onClick={() => setShowSettingsModal(true)}
+                            className="text-white text-sm font-medium leading-normal hover:text-primary transition-colors"
+                        >
+                            Settings
+                        </button>
                     </nav>
-                    <div className="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 border-2 border-[#28392e] bg-gray-700">
-                        <span className="flex h-full w-full items-center justify-center text-xs text-white">JD</span>
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowProfileMenu(!showProfileMenu)}
+                            className="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 border-2 border-[#28392e] bg-gray-700 hover:border-primary transition-colors cursor-pointer"
+                        >
+                            <span className="flex h-full w-full items-center justify-center text-xs text-white">JD</span>
+                        </button>
+                        {showProfileMenu && (
+                            <div className="absolute right-0 top-12 w-48 bg-[#16211b] border border-[#28392e] rounded-xl shadow-xl z-50 overflow-hidden">
+                                <div className="p-4 border-b border-[#28392e]">
+                                    <p className="font-medium text-white">John Doe</p>
+                                    <p className="text-xs text-slate-400">john.doe@email.com</p>
+                                </div>
+                                <div className="py-2">
+                                    <button className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-[#28392e] hover:text-white flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-lg">person</span>
+                                        Profile
+                                    </button>
+                                    <button
+                                        onClick={() => { setShowSettingsModal(true); setShowProfileMenu(false); }}
+                                        className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-[#28392e] hover:text-white flex items-center gap-2"
+                                    >
+                                        <span className="material-symbols-outlined text-lg">settings</span>
+                                        Settings
+                                    </button>
+                                    <button
+                                        onClick={() => window.location.reload()}
+                                        className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-[#28392e] flex items-center gap-2"
+                                    >
+                                        <span className="material-symbols-outlined text-lg">logout</span>
+                                        Sign Out
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </header>
+
+            {/* Settings Modal */}
+            {showSettingsModal && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={() => setShowSettingsModal(false)}>
+                    <div className="bg-[#16211b] border border-[#28392e] rounded-2xl w-full max-w-md m-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between p-4 border-b border-[#28392e]">
+                            <h3 className="text-lg font-bold text-white">Settings</h3>
+                            <button onClick={() => setShowSettingsModal(false)} className="text-slate-400 hover:text-white">
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                        <div className="p-4 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <span className="text-slate-300">Dark Mode</span>
+                                <div className="w-12 h-6 bg-primary rounded-full flex items-center px-1">
+                                    <div className="w-4 h-4 bg-white rounded-full ml-auto"></div>
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-slate-300">Voice Assistant</span>
+                                <div className="w-12 h-6 bg-primary rounded-full flex items-center px-1">
+                                    <div className="w-4 h-4 bg-white rounded-full ml-auto"></div>
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-slate-300">Notifications</span>
+                                <div className="w-12 h-6 bg-[#28392e] rounded-full flex items-center px-1">
+                                    <div className="w-4 h-4 bg-slate-400 rounded-full"></div>
+                                </div>
+                            </div>
+                            <div className="pt-4 border-t border-[#28392e]">
+                                <p className="text-xs text-slate-400">Region: Ontario, Canada</p>
+                                <p className="text-xs text-slate-400">Policy ID: {policyId}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* History Modal */}
+            {showHistoryModal && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={() => setShowHistoryModal(false)}>
+                    <div className="bg-[#16211b] border border-[#28392e] rounded-2xl w-full max-w-lg m-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between p-4 border-b border-[#28392e]">
+                            <h3 className="text-lg font-bold text-white">Claim History</h3>
+                            <button onClick={() => setShowHistoryModal(false)} className="text-slate-400 hover:text-white">
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                        <div className="p-4 space-y-3 max-h-80 overflow-y-auto">
+                            <div className="p-3 bg-[#0b120e] rounded-xl border border-[#28392e]">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <p className="font-medium text-white">Prescription - Metformin</p>
+                                        <p className="text-xs text-slate-400">Jan 15, 2026</p>
+                                    </div>
+                                    <span className="text-primary font-mono text-sm">$0.00</span>
+                                </div>
+                            </div>
+                            <div className="p-3 bg-[#0b120e] rounded-xl border border-[#28392e]">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <p className="font-medium text-white">Lab Work - Blood Test</p>
+                                        <p className="text-xs text-slate-400">Jan 10, 2026</p>
+                                    </div>
+                                    <span className="text-primary font-mono text-sm">$0.00</span>
+                                </div>
+                            </div>
+                            <div className="p-3 bg-[#0b120e] rounded-xl border border-[#28392e]">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <p className="font-medium text-white">Specialist Visit</p>
+                                        <p className="text-xs text-slate-400">Jan 5, 2026</p>
+                                    </div>
+                                    <span className="text-yellow-400 font-mono text-sm">$25.00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Main Split Layout */}
             <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">

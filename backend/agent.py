@@ -166,7 +166,7 @@ def extract_bill_info(state: AgentState) -> dict:
 
 
 def check_private_insurance(state: AgentState) -> dict:
-    """Node 2: Private Adjuster - Uses Gemini to analyze insurance coverage"""
+    """Node 2: Private Adjuster - Uses rule-based coverage calculation (no API calls)"""
     logs = []
     
     logs.append("Adjuster: Starting insurance coverage analysis...")
@@ -175,69 +175,33 @@ def check_private_insurance(state: AgentState) -> dict:
     bill_data = state.get('bill_data', {})
     bill_total = bill_data.get('total', 0)
     services = bill_data.get('services', [])
-    service_type = bill_data.get('service', 'Medical Services')
+    service_type = bill_data.get('service', 'Medical Services').lower()
     
     logs.append(f"Adjuster: Checking policy #{policy_id[:8] if policy_id else 'N/A'}...")
+    logs.append(f"Adjuster: Service type: {service_type}")
     
-    coverage_amount = 0.0
-    reasoning = "Unable to analyze"
+    # Rule-based coverage calculation (no Gemini API call needed)
+    coverage_rate = 0.70  # Default 70%
     
-    if client and bill_total > 0:
-        try:
-            logs.append("Adjuster: Connecting to Gemini AI...")
-            
-            prompt = f"""You are an insurance adjuster AI. Analyze this claim and determine coverage.
-
-Bill Details:
-- Total Amount: ${bill_total:.2f}
-- Services: {', '.join(services) if services else service_type}
-- Policy ID: {policy_id}
-
-Based on typical private insurance policies:
-- Prescription drugs: 80% coverage
-- Emergency services: 80% coverage  
-- Ambulance: 100% coverage
-- Surgery: 85% coverage
-- General medical: 70% coverage
-
-Calculate the coverage amount and explain briefly. Respond in this exact format:
-COVERAGE_PERCENT: [number]
-COVERAGE_AMOUNT: [number]
-REASONING: [one sentence explanation]"""
-
-            logs.append("Adjuster: Sending coverage analysis request...")
-            
-            response = client.models.generate_content(
-                model='models/gemini-3-flash-preview',
-                contents=prompt
-            )
-            
-            logs.append("Adjuster: Response received. Parsing coverage data...")
-            
-            # Parse response
-            text = response.text
-            for line in text.split('\n'):
-                if 'COVERAGE_AMOUNT:' in line:
-                    try:
-                        coverage_amount = float(line.split(':')[1].strip().replace('$', '').replace(',', ''))
-                    except:
-                        coverage_amount = bill_total * 0.7
-                if 'REASONING:' in line:
-                    reasoning = line.split(':', 1)[1].strip()
-                    
-            logs.append(f"Adjuster: {reasoning}")
-            logs.append(f"Adjuster: Coverage amount: ${coverage_amount:,.2f}")
-                    
-        except Exception as e:
-            logs.append(f"Adjuster: AI unavailable, using fallback rules...")
-            coverage_amount = bill_total * 0.7
-            reasoning = "Default 70% coverage applied"
-            logs.append(f"Adjuster: {reasoning} - ${coverage_amount:,.2f}")
+    if any(word in service_type for word in ['prescription', 'medication', 'drug', 'pharmacy']):
+        coverage_rate = 0.80
+        reasoning = "Prescription drugs covered at 80%"
+    elif any(word in service_type for word in ['emergency', 'er ', 'urgent']):
+        coverage_rate = 0.80
+        reasoning = "Emergency services covered at 80%"
+    elif 'ambulance' in service_type:
+        coverage_rate = 1.0
+        reasoning = "Ambulance services fully covered"
+    elif 'surgery' in service_type:
+        coverage_rate = 0.85
+        reasoning = "Surgical procedures covered at 85%"
     else:
-        coverage_amount = bill_total * 0.7
-        logs.append("Adjuster: Using standard coverage calculation")
-        logs.append(f"Adjuster: Coverage: ${coverage_amount:,.2f}")
+        reasoning = "Standard medical services coverage at 70%"
     
+    coverage_amount = bill_total * coverage_rate
+    
+    logs.append(f"Adjuster: {reasoning}")
+    logs.append(f"Adjuster: Coverage: ${coverage_amount:,.2f} ({int(coverage_rate*100)}%)")
     logs.append("Adjuster: Complete. Passing to Social Worker...")
     
     return {
@@ -247,7 +211,7 @@ REASONING: [one sentence explanation]"""
 
 
 def check_public_aid(state: AgentState) -> dict:
-    """Node 3: Social Worker - Uses Gemini to find government aid programs"""
+    """Node 3: Social Worker - Uses rule-based program matching (no API calls)"""
     logs = []
     
     logs.append("Social Worker: Starting government aid search...")
@@ -255,74 +219,48 @@ def check_public_aid(state: AgentState) -> dict:
     region = state.get('region', 'Ontario')
     bill_data = state.get('bill_data', {})
     bill_total = bill_data.get('total', 0)
-    services = bill_data.get('services', [])
+    service_type = bill_data.get('service', 'Medical Services').lower()
     private_coverage = state.get('private_coverage', 0)
     remaining = bill_total - private_coverage
     
     logs.append(f"Social Worker: Region: {region}")
-    logs.append(f"Social Worker: Remaining balance after insurance: ${remaining:,.2f}")
+    logs.append(f"Social Worker: Remaining balance: ${remaining:,.2f}")
     
     public_aid = 0.0
-    program_found = "No program found"
+    program_found = None
     
-    if client and remaining > 0:
-        try:
-            logs.append("Social Worker: Connecting to Gemini AI...")
-            logs.append("Social Worker: Querying government program database...")
-            
-            prompt = f"""You are a social worker AI helping find government aid programs.
-
-Patient Situation:
-- Region: {region}
-- Bill Total: ${bill_total:.2f}
-- Private Insurance Covered: ${private_coverage:.2f}
-- Remaining Balance: ${remaining:.2f}
-- Services: {', '.join(services) if services else 'Medical services'}
-
-Find applicable government programs. Consider:
-- Ontario: OHIP, Ontario Works, Trillium Drug Program
-- Quebec: RAMQ, Social Assistance
-- USA/New York: Medicaid, Medicare, Hospital Financial Assistance
-
-Respond in this exact format:
-PROGRAM_NAME: [name of program or "None"]
-AID_AMOUNT: [number - how much this program covers]
-REASONING: [one sentence explanation]"""
-
-            response = client.models.generate_content(
-                model='models/gemini-3-flash-preview',
-                contents=prompt
-            )
-            
-            logs.append("Social Worker: Response received. Analyzing programs...")
-            
-            text = response.text
-            for line in text.split('\n'):
-                if 'PROGRAM_NAME:' in line:
-                    program_found = line.split(':', 1)[1].strip()
-                if 'AID_AMOUNT:' in line:
-                    try:
-                        public_aid = float(line.split(':')[1].strip().replace('$', '').replace(',', ''))
-                    except:
-                        public_aid = 0.0
-            
-            if public_aid > 0:
-                logs.append(f"Social Worker: Found program: {program_found}")
-                logs.append(f"Social Worker: Aid amount: ${public_aid:,.2f}")
+    # Rule-based program matching (no Gemini API call needed)
+    if remaining > 0:
+        logs.append("Social Worker: Searching government programs...")
+        
+        if region in ["Ontario", "Canada"]:
+            # Check for prescription coverage under ODB/Trillium
+            if any(word in service_type for word in ['prescription', 'medication', 'drug', 'pharmacy']):
+                public_aid = remaining  # ODB covers full remaining for eligible drugs
+                program_found = "Ontario Drug Benefit (ODB)"
+                logs.append(f"Social Worker: Found {program_found}")
             else:
-                logs.append("Social Worker: No matching programs found")
-                        
-        except Exception as e:
-            logs.append("Social Worker: AI unavailable, using fallback...")
-            if remaining > 0 and region in ["Ontario", "Canada"]:
-                public_aid = min(remaining, 500.0)
+                # Ontario Works assistance for remaining balance
+                public_aid = min(remaining, remaining * 0.5)  # 50% of remaining
                 program_found = "Ontario Works Emergency Assistance"
-                logs.append(f"Social Worker: Fallback: {program_found} - ${public_aid:,.2f}")
-    else:
-        if remaining <= 0:
-            logs.append("Social Worker: No remaining balance - no aid needed!")
+                logs.append(f"Social Worker: Found {program_found}")
+                
+        elif region in ["Quebec"]:
+            public_aid = remaining * 0.7
+            program_found = "RAMQ Prescription Drug Insurance"
+            logs.append(f"Social Worker: Found {program_found}")
+            
+        elif region in ["USA", "New York"]:
+            public_aid = min(remaining, 500.0)
+            program_found = "Hospital Financial Assistance Program"
+            logs.append(f"Social Worker: Found {program_found}")
+        
+        if public_aid > 0:
+            logs.append(f"Social Worker: Aid amount: ${public_aid:,.2f}")
         else:
-            logs.append("Social Worker: Checking local programs...")
+            logs.append("Social Worker: No matching programs found")
+    else:
+        logs.append("Social Worker: No remaining balance - fully covered!")
     
     logs.append("Social Worker: Complete. Passing to Coordinator...")
     
@@ -330,7 +268,7 @@ REASONING: [one sentence explanation]"""
 
 
 def coordinate_benefits(state: AgentState) -> dict:
-    """Node 4: Coordinator - Uses Gemini to summarize and calculate final cost"""
+    """Node 4: Coordinator - Final calculation (no API calls)"""
     logs = []
     
     logs.append("Coordinator: Starting final benefit calculation...")
@@ -342,39 +280,19 @@ def coordinate_benefits(state: AgentState) -> dict:
     you_pay = max(0, bill_total - private - public)
     
     logs.append(f"Coordinator: Original bill: ${bill_total:,.2f}")
-    logs.append(f"Coordinator: Private insurance: ${private:,.2f}")
-    logs.append(f"Coordinator: Government aid: ${public:,.2f}")
-    logs.append(f"Coordinator: Calculating final amount...")
+    logs.append(f"Coordinator: Private insurance: -${private:,.2f}")
+    logs.append(f"Coordinator: Government aid: -${public:,.2f}")
+    logs.append(f"Coordinator: Final amount due: ${you_pay:,.2f}")
     
-    summary = f"You pay ${you_pay:,.2f}"
-    
-    if client:
-        try:
-            logs.append("Coordinator: Connecting to Gemini AI...")
-            logs.append("Coordinator: Generating summary...")
-            
-            prompt = f"""You are the Coordinator AI finalizing a Coordination of Benefits calculation.
-
-Final Numbers:
-- Original Bill: ${bill_total:.2f}
-- Private Insurance Paid: ${private:.2f}
-- Government Aid: ${public:.2f}
-- Patient Responsibility: ${you_pay:.2f}
-
-Provide a brief, encouraging summary in one sentence. No markdown. Be warm and reassuring."""
-
-            response = client.models.generate_content(
-                model='models/gemini-3-flash-preview',
-                contents=prompt
-            )
-            summary = response.text.strip()
-            logs.append(f"Coordinator: {summary}")
-        except Exception as e:
-            logs.append("Coordinator: Using standard calculation...")
-            logs.append(f"Coordinator: Final amount due: ${you_pay:,.2f}")
+    # Generate summary without API call
+    if you_pay == 0:
+        summary = "Great news! Your bill is fully covered. You pay nothing."
+    elif you_pay < bill_total * 0.1:
+        summary = f"Most of your bill is covered. You only pay ${you_pay:,.2f}."
     else:
-        logs.append(f"Coordinator: Final amount due: ${you_pay:,.2f}")
+        summary = f"After benefits, your responsibility is ${you_pay:,.2f}."
     
+    logs.append(f"Coordinator: {summary}")
     logs.append("Coordinator: Analysis complete!")
     
     return {
