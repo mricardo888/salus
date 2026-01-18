@@ -7,7 +7,8 @@
     "dev:all": "concurrently \"npm run dev\" \"cd backend && uvicorn main:app --reload --port 8000\"",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "heroku-postbuild": "npm run build"
   },
   "dependencies": {
     "@google/genai": "^1.37.0",

@@ -2,10 +2,11 @@ fastapi
 uvicorn
 langgraph
 langchain-google-genai
+langchain-core
 pymongo
 python-dotenv
 requests
 pydantic
-moviepy
 python-multipart
 google-genai
+certifi

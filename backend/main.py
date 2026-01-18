@@ -4,6 +4,8 @@ Provides endpoints for chat, file upload, and benefit analysis
 """
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage, AIMessage
 import os
@@ -18,14 +20,29 @@ load_dotenv(dotenv_path=env_path)
 # Initialize FastAPI
 app = FastAPI(title="Salus API", version="1.0.0")
 
-# CORS
+# CORS - allow both local and production
+allowed_origins = [
+    "http://localhost:3000",
+    "https://salusify.tech",
+    "https://www.salusify.tech",
+    "https://salusify.herokuapp.com",
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serve static Next.js build if it exists (for production)
+static_path = Path(__file__).parents[1] / 'out'
+if static_path.exists():
+    app.mount("/_next", StaticFiles(directory=static_path / "_next"), name="next_static")
+    
+    @app.get("/")
+    async def serve_index():
+        return FileResponse(static_path / "index.html")
 
 # Import agents
 from agent import chat_graph, analysis_graph
