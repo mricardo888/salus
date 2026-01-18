@@ -19,6 +19,8 @@ export const IntakeDashboard: React.FC<IntakeDashboardProps> = ({ onAnalyze, pol
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
     const [showHistoryModal, setShowHistoryModal] = useState(false);
+    const [hasBillUploaded, setHasBillUploaded] = useState(false);
+    const [isListening, setIsListening] = useState(false);
     const chatEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { speak } = useElevenLabs();
@@ -87,6 +89,7 @@ export const IntakeDashboard: React.FC<IntakeDashboardProps> = ({ onAnalyze, pol
                     timestamp: Date.now()
                 };
                 setMessages([uploadMsg]);
+                setHasBillUploaded(true);
                 speak(data.response);
             } else {
                 console.error("Upload failed");
@@ -169,6 +172,50 @@ export const IntakeDashboard: React.FC<IntakeDashboardProps> = ({ onAnalyze, pol
 
     const handleKeyPress = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter') handleSend();
+    };
+
+    const handleVoiceInput = () => {
+        if (!hasBillUploaded) return;
+
+        // Check for browser support (using any for Web Speech API compatibility)
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+        if (!SpeechRecognition) {
+            alert('Voice input is not supported in this browser. Please use Chrome or Edge.');
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+
+        recognition.onstart = () => {
+            setIsListening(true);
+        };
+
+        recognition.onresult = (event: any) => {
+            const transcript = event.results[0][0].transcript;
+            setInputText(transcript);
+            setIsListening(false);
+            // Auto-send after voice input
+            setTimeout(() => {
+                if (transcript.trim()) {
+                    handleSend();
+                }
+            }, 500);
+        };
+
+        recognition.onerror = (event: any) => {
+            console.error('Speech recognition error:', event.error);
+            setIsListening(false);
+        };
+
+        recognition.onend = () => {
+            setIsListening(false);
+        };
+
+        recognition.start();
     };
 
     return (
@@ -343,15 +390,27 @@ export const IntakeDashboard: React.FC<IntakeDashboardProps> = ({ onAnalyze, pol
 
                         {/* Upload Zone */}
                         <div
-                            onClick={handleUploadClick}
-                            className="group relative flex flex-col items-center justify-center gap-4 rounded-3xl border-2 border-dashed border-[#3b5443] bg-[#16211b] p-10 transition-all hover:border-primary hover:bg-[#1a2820] cursor-pointer"
+                            onClick={hasBillUploaded ? undefined : handleUploadClick}
+                            className={`group relative flex flex-col items-center justify-center gap-4 rounded-3xl border-2 border-dashed p-10 transition-all ${hasBillUploaded
+                                ? 'border-[#28392e] bg-[#0f1610] cursor-not-allowed opacity-50'
+                                : 'border-[#3b5443] bg-[#16211b] hover:border-primary hover:bg-[#1a2820] cursor-pointer'
+                                }`}
                         >
-                            <div className="rounded-full bg-[#28392e] p-4 text-primary transition-colors group-hover:bg-primary group-hover:text-[#102216]">
-                                <span className="material-symbols-outlined text-3xl">upload_file</span>
+                            <div className={`rounded-full p-4 transition-colors ${hasBillUploaded
+                                ? 'bg-[#1a2420] text-slate-500'
+                                : 'bg-[#28392e] text-primary group-hover:bg-primary group-hover:text-[#102216]'
+                                }`}>
+                                <span className="material-symbols-outlined text-3xl">
+                                    {hasBillUploaded ? 'check_circle' : 'upload_file'}
+                                </span>
                             </div>
                             <div className="text-center">
-                                <p className="text-white text-lg font-bold mb-1">Upload Hospital Bill</p>
-                                <p className="text-slate-400 text-sm">Drag & drop or click to browse</p>
+                                <p className={`text-lg font-bold mb-1 ${hasBillUploaded ? 'text-slate-500' : 'text-white'}`}>
+                                    {hasBillUploaded ? 'Bill Uploaded ✓' : 'Upload Hospital Bill'}
+                                </p>
+                                <p className="text-slate-500 text-sm">
+                                    {hasBillUploaded ? 'Document received and analyzed' : 'Drag & drop or click to browse'}
+                                </p>
                             </div>
                         </div>
 
@@ -497,28 +556,54 @@ export const IntakeDashboard: React.FC<IntakeDashboardProps> = ({ onAnalyze, pol
                     <div className="absolute bottom-8 left-0 right-0 z-30 flex justify-center items-end px-4 gap-4">
                         <div className="relative group w-full max-w-xl">
                             <div className="absolute inset-0 bg-primary/5 rounded-full blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
-                            <div className="flex items-center bg-[#16211b] border border-[#3b5443] rounded-full px-2 shadow-xl focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/50 transition-all">
+                            <div className={`flex items-center rounded-full px-2 shadow-xl transition-all ${hasBillUploaded
+                                ? 'bg-[#16211b] border border-[#3b5443] focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/50'
+                                : 'bg-[#0f1610] border border-[#1a2420] opacity-50 cursor-not-allowed'
+                                }`}>
                                 <input
                                     type="text"
                                     value={inputText}
                                     onChange={(e) => setInputText(e.target.value)}
                                     onKeyDown={handleKeyPress}
-                                    placeholder="Type your response or tap mic..."
-                                    className="flex-1 bg-transparent border-none text-white placeholder-slate-400 focus:ring-0 px-4 py-4 outline-none"
+                                    placeholder={hasBillUploaded ? "Type your response or tap mic..." : "Upload a bill first to start chatting..."}
+                                    disabled={!hasBillUploaded}
+                                    className="flex-1 bg-transparent border-none text-white placeholder-slate-500 focus:ring-0 px-4 py-4 outline-none disabled:cursor-not-allowed"
                                 />
-                                <button onClick={handleSend} className="p-2 bg-[#28392e] rounded-full text-white hover:bg-primary hover:text-black transition-colors cursor-pointer">
+                                <button
+                                    onClick={handleSend}
+                                    disabled={!hasBillUploaded}
+                                    className={`p-2 rounded-full transition-colors ${hasBillUploaded
+                                        ? 'bg-[#28392e] text-white hover:bg-primary hover:text-black cursor-pointer'
+                                        : 'bg-[#1a2420] text-slate-600 cursor-not-allowed'
+                                        }`}
+                                >
                                     <span className="material-symbols-outlined">send</span>
                                 </button>
                             </div>
                         </div>
 
                         <div className="relative group shrink-0">
-                            <button className="relative flex items-center justify-center size-14 bg-primary text-[#0b120e] rounded-full shadow-[0_0_30px_rgba(19,236,91,0.3)] hover:shadow-[0_0_50px_rgba(19,236,91,0.5)] hover:scale-105 transition-all duration-300">
-                                <span className="material-symbols-outlined text-2xl">mic</span>
+                            <button
+                                onClick={handleVoiceInput}
+                                disabled={!hasBillUploaded}
+                                className={`relative flex items-center justify-center size-14 rounded-full transition-all duration-300 ${!hasBillUploaded
+                                    ? 'bg-[#1a2420] text-slate-600 cursor-not-allowed opacity-50'
+                                    : isListening
+                                        ? 'bg-red-500 text-white shadow-[0_0_30px_rgba(239,68,68,0.5)] animate-pulse'
+                                        : 'bg-primary text-[#0b120e] shadow-[0_0_30px_rgba(19,236,91,0.3)] hover:shadow-[0_0_50px_rgba(19,236,91,0.5)] hover:scale-105'
+                                    }`}
+                            >
+                                <span className="material-symbols-outlined text-2xl">
+                                    {isListening ? 'hearing' : 'mic'}
+                                </span>
                             </button>
+                            {isListening && (
+                                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-red-500 text-white text-xs px-2 py-1 rounded-full whitespace-nowrap">
+                                    Listening...
+                                </div>
+                            )}
                         </div>
                     </div>
-
                 </section>
             </main>
         </div>

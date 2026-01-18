@@ -9,6 +9,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 import os
 from dotenv import load_dotenv
 from pathlib import Path
+from config import GEMINI_MODEL_PATH
 
 # Load environment variables
 env_path = Path(__file__).parents[1] / '.env.local'
@@ -106,7 +107,7 @@ async def upload_file(file: UploadFile = File(...)):
                 
                 # Call Gemini Vision to extract bill information
                 response = client.models.generate_content(
-                    model='models/gemini-3-flash-preview',
+                    model=GEMINI_MODEL_PATH,
                     contents=[
                         {
                             "parts": [

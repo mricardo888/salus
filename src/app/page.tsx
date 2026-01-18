@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { AppView } from '@/types';
 import { LandingVault } from '@/components/LandingVault';
 import { IntakeDashboard } from '@/components/IntakeDashboard';
@@ -20,6 +20,8 @@ export default function Home() {
   const [currentView, setCurrentView] = useState<AppView>(AppView.LANDING);
   const [sessionLogs, setSessionLogs] = useState<string[]>([]);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisComplete, setAnalysisComplete] = useState(false);
 
   // Generate a unique Policy ID for this session
   const [policyId] = useState(() => '88' + Math.floor(Math.random() * 9000000 + 1000000).toString());
@@ -27,11 +29,31 @@ export default function Home() {
   // Transition Helpers
   const goToUnlock = () => setCurrentView(AppView.DASHBOARD);
 
+  // Add log progressively
+  const addLog = useCallback((log: string) => {
+    setSessionLogs(prev => [...prev, log]);
+  }, []);
+
   const runActuaryEngine = async () => {
     setCurrentView(AppView.DEBUGGER);
-    setSessionLogs(["Starting Actuary Engine...", "Connecting to backend..."]);
+    setIsAnalyzing(true);
+    setAnalysisComplete(false);
+    setSessionLogs([]);
+
+    // Show initial progress logs
+    addLog("System: Starting Actuary Engine...");
+
+    await new Promise(r => setTimeout(r, 300));
+    addLog("System: Connecting to MongoDB Atlas...");
+
+    await new Promise(r => setTimeout(r, 300));
+    addLog("System: Loading agent personas...");
 
     try {
+      // Show connecting message
+      await new Promise(r => setTimeout(r, 300));
+      addLog("System: Sending request to backend...");
+
       const response = await fetch('http://localhost:8000/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -46,37 +68,52 @@ export default function Home() {
       }
 
       const result = await response.json();
-      setAnalysisResult(result);
-      setSessionLogs(result.logs || ["Analysis complete"]);
 
-      // Wait to show the logs, then go to results
-      setTimeout(() => {
-        setCurrentView(AppView.RESULTS);
-      }, 3000);
+      // Progressively show each log from the result
+      if (result.logs && result.logs.length > 0) {
+        addLog("System: Backend connected! Processing agents...");
+        await new Promise(r => setTimeout(r, 500));
+
+        // Show logs one by one with delays for visibility
+        for (let i = 0; i < result.logs.length; i++) {
+          await new Promise(r => setTimeout(r, 150)); // Small delay between logs
+          addLog(result.logs[i]);
+        }
+      }
+
+      // Mark as complete and set results
+      await new Promise(r => setTimeout(r, 500));
+      addLog("System: ✓ Analysis complete!");
+
+      setAnalysisResult(result);
+      setIsAnalyzing(false);
+      setAnalysisComplete(true);
 
     } catch (error) {
       console.error('Analysis error:', error);
-      setSessionLogs([
-        "Starting Actuary Engine...",
-        "Error: Could not connect to backend",
-        "Please ensure the Python backend is running (./run_dev.sh)"
-      ]);
-      // Still show results with fallback data after a delay
-      setTimeout(() => {
-        setAnalysisResult({
-          bill_total: 0,
-          private_coverage: 0,
-          public_coverage: 0,
-          final_cost: 0,
-          logs: ["Error connecting to backend"],
-          summary: "Please restart the backend"
-        });
-        setCurrentView(AppView.RESULTS);
-      }, 3000);
+      addLog("System: ⚠ Error connecting to backend");
+      addLog("System: Please ensure the Python backend is running (./run_dev.sh)");
+      setIsAnalyzing(false);
+
+      // Set fallback result
+      setAnalysisResult({
+        bill_total: 0,
+        private_coverage: 0,
+        public_coverage: 0,
+        final_cost: 0,
+        logs: ["Error connecting to backend"],
+        summary: "Please restart the backend"
+      });
+      setAnalysisComplete(true);
     }
   };
 
-  const goToResults = () => setCurrentView(AppView.RESULTS);
+  const goToResults = () => {
+    // Only allow going to results if analysis is complete with data
+    if (analysisComplete && analysisResult) {
+      setCurrentView(AppView.RESULTS);
+    }
+  };
 
   return (
     <>
@@ -90,6 +127,8 @@ export default function Home() {
             onComplete={goToResults}
             policyId={policyId}
             realLogs={sessionLogs}
+            isAnalyzing={isAnalyzing}
+            analysisComplete={analysisComplete}
           />
         )}
         {currentView === AppView.RESULTS && (
