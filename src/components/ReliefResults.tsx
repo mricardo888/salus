@@ -12,6 +12,7 @@ interface ReliefResultsProps {
     userProfile?: UserProfile | null;
     insurancePlan?: string;
     governmentProgram?: string;
+    onGoToDashboard: () => void;
 }
 
 export const ReliefResults: React.FC<ReliefResultsProps> = ({
@@ -22,7 +23,8 @@ export const ReliefResults: React.FC<ReliefResultsProps> = ({
     finalCost,
     userProfile,
     insurancePlan,
-    governmentProgram
+    governmentProgram,
+    onGoToDashboard
 }) => {
     // Calculate percentages for pie chart
     const total = billTotal || 1; // Avoid division by zero
@@ -306,10 +308,11 @@ export const ReliefResults: React.FC<ReliefResultsProps> = ({
                             Download
                         </button>
                         <button
-                            onClick={() => window.location.reload()}
-                            className="px-5 py-2.5 rounded-full bg-primary text-[#0b120e] font-bold shadow-lg hover:shadow-primary/50 transition-all"
+                            onClick={onGoToDashboard}
+                            className="px-5 py-2.5 rounded-full bg-primary text-[#0b120e] font-bold shadow-lg hover:shadow-primary/50 transition-all flex items-center gap-2"
                         >
-                            New Session
+                            <span className="material-symbols-outlined text-lg">dashboard</span>
+                            View All Claims
                         </button>
                     </div>
                 </div>

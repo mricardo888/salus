@@ -7,6 +7,7 @@ import { UserProfileForm } from '@/components/UserProfileForm';
 import { IntakeDashboard } from '@/components/IntakeDashboard';
 import { LiveDebugger } from '@/components/LiveDebugger';
 import { ReliefResults } from '@/components/ReliefResults';
+import { ClaimsDashboard } from '@/components/ClaimsDashboard';
 import { API_URL } from '@/config/api';
 
 interface AnalysisResult {
@@ -170,6 +171,14 @@ export default function Home() {
     }
   };
 
+  const goToClaimsDashboard = () => {
+    setCurrentView(AppView.CLAIMS_DASHBOARD);
+  };
+
+  const goToIntakeDashboard = () => {
+    setCurrentView(AppView.DASHBOARD);
+  };
+
   return (
     <>
       <main className="min-h-screen bg-background dark:bg-background-dark">
@@ -203,6 +212,13 @@ export default function Home() {
             userProfile={userProfile}
             insurancePlan={analysisResult?.insurance_plan}
             governmentProgram={analysisResult?.government_program}
+            onGoToDashboard={goToClaimsDashboard}
+          />
+        )}
+        {currentView === AppView.CLAIMS_DASHBOARD && (
+          <ClaimsDashboard
+            passkeyUserId={passkeyUserId}
+            onNewBill={goToIntakeDashboard}
           />
         )}
       </main>

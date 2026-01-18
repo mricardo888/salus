@@ -3,7 +3,8 @@ export enum AppView {
   PROFILE = 'PROFILE',
   DASHBOARD = 'DASHBOARD',
   DEBUGGER = 'DEBUGGER',
-  RESULTS = 'RESULTS'
+  RESULTS = 'RESULTS',
+  CLAIMS_DASHBOARD = 'CLAIMS_DASHBOARD'
 }
 
 export interface ChatMessage {
