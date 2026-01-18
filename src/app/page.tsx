@@ -7,6 +7,7 @@ import { UserProfileForm } from '@/components/UserProfileForm';
 import { IntakeDashboard } from '@/components/IntakeDashboard';
 import { LiveDebugger } from '@/components/LiveDebugger';
 import { ReliefResults } from '@/components/ReliefResults';
+import { API_URL } from '@/config/api';
 
 interface AnalysisResult {
   bill_total: number;
@@ -68,7 +69,7 @@ export default function Home() {
       await new Promise(r => setTimeout(r, 300));
       addLog("System: Sending request to backend...");
 
-      const response = await fetch('http://localhost:8000/api/analyze', {
+      const response = await fetch(`${API_URL}/api/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

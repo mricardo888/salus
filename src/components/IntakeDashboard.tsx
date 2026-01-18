@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage } from '../types';
 import { useElevenLabs } from '../hooks/useElevenLabs';
+import { API_URL } from '@/config/api';
 
 interface IntakeDashboardProps {
     onAnalyze: () => void;
@@ -44,7 +45,7 @@ export const IntakeDashboard: React.FC<IntakeDashboardProps> = ({ onAnalyze, pol
 
         try {
             // First upload the file and get extracted data
-            const uploadRes = await fetch('http://localhost:8000/api/upload', {
+            const uploadRes = await fetch(`${API_URL}/api/upload`, {
                 method: 'POST',
                 body: formData
             });
@@ -70,7 +71,7 @@ export const IntakeDashboard: React.FC<IntakeDashboardProps> = ({ onAnalyze, pol
                 extractedInfo += ` Please summarize these details and ask me to confirm if they are correct.`;
 
                 // Now ask Gemini to respond about the extracted data
-                const chatRes = await fetch('http://localhost:8000/api/chat', {
+                const chatRes = await fetch(`${API_URL}/api/chat`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -127,7 +128,7 @@ export const IntakeDashboard: React.FC<IntakeDashboardProps> = ({ onAnalyze, pol
             }));
 
             // Call Python Backend with history
-            const res = await fetch('http://localhost:8000/api/chat', {
+            const res = await fetch(`${API_URL}/api/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
