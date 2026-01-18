@@ -106,12 +106,36 @@ async def upload_file(file: UploadFile = File(...)):
                     mime_type = "application/pdf"
                 
                 # Call Gemini Vision to extract bill information
+                vision_prompt = """Analyze this medical document. It could be:
+- Hospital bill / statement
+- Prescription drug receipt
+- Pharmacy receipt
+- Medical lab/test bill
+- Insurance EOB (Explanation of Benefits)
+
+Identify the document type and extract:
+
+{
+  "document_type": "hospital_bill" | "prescription" | "pharmacy" | "lab_test" | "insurance_eob" | "other",
+  "total_charges": number (original total BEFORE any deductions),
+  "insurance_paid": number (already covered by insurance, 0 if not shown),
+  "patient_responsibility": number (actual amount owed),
+  "services": ["list of items/services/medications"],
+  "date_of_service": "string",
+  "provider_name": "string (hospital, pharmacy, or clinic name)"
+}
+
+RULES:
+- For prescriptions/pharmacy: services = medication names, provider = pharmacy
+- If only one amount shown, it's likely patient_responsibility (already adjusted)
+- Return ONLY valid JSON, no other text."""
+                
                 response = client.models.generate_content(
                     model=GEMINI_MODEL_PATH,
                     contents=[
                         {
                             "parts": [
-                                {"text": "Analyze this medical bill or receipt. Extract and return ONLY a JSON object with these fields: total_amount (number), services (array of strings describing each line item/service), date_of_service (string), provider_name (string). If you cannot find a value, use null. Return ONLY valid JSON, no other text."},
+                                {"text": vision_prompt},
                                 {"inline_data": {"mime_type": mime_type, "data": image_base64}}
                             ]
                         }
@@ -129,7 +153,19 @@ async def upload_file(file: UploadFile = File(...)):
                 
                 bill_info = json.loads(response_text)
                 
-                extracted_data['total'] = bill_info.get('total_amount') or 0.0
+                # New structure that understands deductions
+                total_charges = bill_info.get('total_charges') or bill_info.get('total_amount') or 0.0
+                insurance_paid = bill_info.get('insurance_paid') or 0.0
+                patient_responsibility = bill_info.get('patient_responsibility') or total_charges
+                document_type = bill_info.get('document_type') or 'other'
+                
+                # Use total_charges as the bill total for analysis (original amount)
+                # Store both for transparency
+                extracted_data['total'] = total_charges
+                extracted_data['total_charges'] = total_charges
+                extracted_data['insurance_already_paid'] = insurance_paid
+                extracted_data['patient_responsibility'] = patient_responsibility
+                extracted_data['document_type'] = document_type
                 extracted_data['services'] = bill_info.get('services') or []
                 extracted_data['service'] = ', '.join(extracted_data['services'][:3]) if extracted_data['services'] else 'Medical Services'
                 extracted_data['date'] = bill_info.get('date_of_service') or 'Unknown'

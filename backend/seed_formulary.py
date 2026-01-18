@@ -55,6 +55,46 @@ ONTARIO_DRUG_PROGRAMS = [
     }
 ]
 
+# New York State Health Programs
+NEW_YORK_PROGRAMS = [
+    {
+        "program_id": "NY_MEDICAID",
+        "name": "New York Medicaid",
+        "description": "Health coverage for low-income New Yorkers",
+        "eligibility": ["low_income", "children", "pregnant", "disabled"],
+        "coverage_rate": 1.0,
+        "max_copay": 0,
+        "region": "New York"
+    },
+    {
+        "program_id": "NY_EPIC",
+        "name": "Elderly Pharmaceutical Insurance Coverage (EPIC)",
+        "description": "Prescription drug program for seniors 65+",
+        "eligibility": ["seniors_65+", "income_under_75k"],
+        "coverage_rate": 0.75,
+        "max_copay": 20.00,
+        "region": "New York"
+    },
+    {
+        "program_id": "NY_CHARITY",
+        "name": "Hospital Financial Assistance Program",
+        "description": "NY State mandates hospitals provide charity care",
+        "eligibility": ["income_under_300_fpl", "uninsured", "underinsured"],
+        "coverage_rate": 1.0,
+        "income_limit_fpl": 3.0,
+        "region": "New York"
+    },
+    {
+        "program_id": "NY_ESSENTIAL",
+        "name": "Essential Plan",
+        "description": "Low-cost health insurance for NY residents",
+        "eligibility": ["income_200_fpl", "not_eligible_medicaid"],
+        "coverage_rate": 0.90,
+        "monthly_premium": 20.00,
+        "region": "New York"
+    }
+]
+
 # Common prescription drugs from ODB Formulary with coverage info
 DRUG_FORMULARY = [
     {
@@ -210,8 +250,13 @@ def seed_database():
         db.insurance_plans.delete_many({})
         
         # Insert Ontario drug programs
-        print(f"Inserting {len(ONTARIO_DRUG_PROGRAMS)} Ontario drug programs...")
+        print(f"Inserting {len(ONTARIO_DRUG_PROGRAMS)} Ontario programs...")
         db.drug_programs.insert_many(ONTARIO_DRUG_PROGRAMS)
+        
+        # Insert New York programs
+        print(f"Inserting {len(NEW_YORK_PROGRAMS)} New York programs...")
+        db.drug_programs.insert_many(NEW_YORK_PROGRAMS)
+
         
         # Insert drug formulary
         print(f"Inserting {len(DRUG_FORMULARY)} drugs from ODB Formulary...")

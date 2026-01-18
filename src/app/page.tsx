@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useCallback } from 'react';
-import { AppView } from '@/types';
+import { AppView, UserProfile } from '@/types';
 import { LandingVault } from '@/components/LandingVault';
+import { UserProfileForm } from '@/components/UserProfileForm';
 import { IntakeDashboard } from '@/components/IntakeDashboard';
 import { LiveDebugger } from '@/components/LiveDebugger';
 import { ReliefResults } from '@/components/ReliefResults';
@@ -14,6 +15,8 @@ interface AnalysisResult {
   final_cost: number;
   logs: string[];
   summary: string;
+  insurance_plan?: string;
+  government_program?: string;
 }
 
 export default function Home() {
@@ -22,12 +25,18 @@ export default function Home() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisComplete, setAnalysisComplete] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   // Generate a unique Policy ID for this session
   const [policyId] = useState(() => '88' + Math.floor(Math.random() * 9000000 + 1000000).toString());
 
   // Transition Helpers
-  const goToUnlock = () => setCurrentView(AppView.DASHBOARD);
+  const goToProfile = () => setCurrentView(AppView.PROFILE);
+
+  const handleProfileComplete = (profile: UserProfile) => {
+    setUserProfile(profile);
+    setCurrentView(AppView.DASHBOARD);
+  };
 
   // Add log progressively
   const addLog = useCallback((log: string) => {
@@ -49,6 +58,11 @@ export default function Home() {
     await new Promise(r => setTimeout(r, 300));
     addLog("System: Loading agent personas...");
 
+    // Log user profile info
+    if (userProfile) {
+      addLog(`System: User profile - Age: ${userProfile.age}, Region: ${userProfile.region}`);
+    }
+
     try {
       // Show connecting message
       await new Promise(r => setTimeout(r, 300));
@@ -59,7 +73,9 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           policy_id: policyId,
-          region: 'Ontario'
+          region: userProfile?.region || 'Ontario',
+          age: userProfile?.age || 30,
+          gender: userProfile?.gender || 'prefer_not_to_say'
         })
       });
 
@@ -118,7 +134,10 @@ export default function Home() {
   return (
     <>
       <main className="min-h-screen bg-background dark:bg-background-dark">
-        {currentView === AppView.LANDING && <LandingVault onUnlock={goToUnlock} />}
+        {currentView === AppView.LANDING && <LandingVault onUnlock={goToProfile} />}
+        {currentView === AppView.PROFILE && (
+          <UserProfileForm onComplete={handleProfileComplete} />
+        )}
         {currentView === AppView.DASHBOARD && (
           <IntakeDashboard onAnalyze={runActuaryEngine} policyId={policyId} />
         )}
@@ -138,6 +157,9 @@ export default function Home() {
             privateCoverage={analysisResult?.private_coverage || 0}
             publicCoverage={analysisResult?.public_coverage || 0}
             finalCost={analysisResult?.final_cost || 0}
+            userProfile={userProfile}
+            insurancePlan={analysisResult?.insurance_plan}
+            governmentProgram={analysisResult?.government_program}
           />
         )}
       </main>

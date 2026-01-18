@@ -406,10 +406,10 @@ export const IntakeDashboard: React.FC<IntakeDashboardProps> = ({ onAnalyze, pol
                             </div>
                             <div className="text-center">
                                 <p className={`text-lg font-bold mb-1 ${hasBillUploaded ? 'text-slate-500' : 'text-white'}`}>
-                                    {hasBillUploaded ? 'Bill Uploaded ✓' : 'Upload Hospital Bill'}
+                                    {hasBillUploaded ? 'Document Uploaded ✓' : 'Upload Medical Bill'}
                                 </p>
                                 <p className="text-slate-500 text-sm">
-                                    {hasBillUploaded ? 'Document received and analyzed' : 'Drag & drop or click to browse'}
+                                    {hasBillUploaded ? 'Document received and analyzed' : 'Prescriptions, hospital bills, receipts'}
                                 </p>
                             </div>
                         </div>

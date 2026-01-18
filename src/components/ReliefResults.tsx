@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import { UserProfile } from '@/types';
 
 interface ReliefResultsProps {
     policyId: string;
@@ -8,6 +9,9 @@ interface ReliefResultsProps {
     privateCoverage: number;
     publicCoverage: number;
     finalCost: number;
+    userProfile?: UserProfile | null;
+    insurancePlan?: string;
+    governmentProgram?: string;
 }
 
 export const ReliefResults: React.FC<ReliefResultsProps> = ({
@@ -15,7 +19,10 @@ export const ReliefResults: React.FC<ReliefResultsProps> = ({
     billTotal,
     privateCoverage,
     publicCoverage,
-    finalCost
+    finalCost,
+    userProfile,
+    insurancePlan,
+    governmentProgram
 }) => {
     // Calculate percentages for pie chart
     const total = billTotal || 1; // Avoid division by zero
@@ -32,8 +39,32 @@ export const ReliefResults: React.FC<ReliefResultsProps> = ({
     const publicOffset = (privatePercent / 100) * circumference;
     const patientOffset = ((privatePercent + publicPercent) / 100) * circumference;
 
+    // Determine eligibility details based on user profile
+    const getEligibilityDetails = () => {
+        if (!userProfile) return null;
+
+        const details: string[] = [];
+
+        // Age-based eligibility
+        if (userProfile.age >= 65) {
+            if (userProfile.region === 'Ontario') {
+                details.push('✓ Eligible for Ontario Drug Benefit (seniors 65+)');
+            } else {
+                details.push('✓ Eligible for NY EPIC (seniors 65+)');
+            }
+        } else if (userProfile.age < 25) {
+            if (userProfile.region === 'Ontario') {
+                details.push('✓ Eligible for OHIP+ (under 25)');
+            }
+        }
+
+        return details;
+    };
+
+    const eligibilityDetails = getEligibilityDetails();
+
     return (
-        <div className="flex h-screen w-full bg-[#0b120e] text-white">
+        <div className="flex min-h-screen w-full bg-[#0b120e] text-white">
             {/* LEFT SIDE: Pie Chart */}
             <div className="w-1/2 flex flex-col items-center justify-center p-8 border-r border-[#28392e]">
                 <h2 className="text-2xl font-bold mb-8 text-slate-300">Coverage Breakdown</h2>
@@ -133,52 +164,111 @@ export const ReliefResults: React.FC<ReliefResultsProps> = ({
             </div>
 
             {/* RIGHT SIDE: Detailed Breakdown */}
-            <div className="w-1/2 flex flex-col items-center justify-center p-8">
+            <div className="w-1/2 flex flex-col items-center justify-start p-8 overflow-y-auto">
                 <div className="flex flex-col items-center gap-6 max-w-md w-full">
                     {/* Success Icon */}
-                    <div className="size-20 rounded-full bg-primary/20 flex items-center justify-center border-2 border-primary text-primary shadow-[0_0_40px_rgba(19,236,91,0.4)]">
-                        <span className="material-symbols-outlined text-4xl">check_circle</span>
+                    <div className="size-16 rounded-full bg-primary/20 flex items-center justify-center border-2 border-primary text-primary shadow-[0_0_40px_rgba(19,236,91,0.4)]">
+                        <span className="material-symbols-outlined text-3xl">check_circle</span>
                     </div>
 
-                    <h1 className="text-3xl font-bold">Coverage Secured</h1>
+                    <h1 className="text-2xl font-bold">Coverage Secured</h1>
 
                     {/* Detailed amounts */}
-                    <div className="w-full bg-[#16211b] border border-[#28392e] rounded-2xl p-6 space-y-4">
-                        <div className="flex justify-between items-center pb-4 border-b border-[#28392e]">
+                    <div className="w-full bg-[#16211b] border border-[#28392e] rounded-2xl p-5 space-y-3">
+                        <div className="flex justify-between items-center pb-3 border-b border-[#28392e]">
                             <span className="text-slate-400">Original Bill</span>
-                            <span className="text-xl font-mono">${billTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                            <span className="text-lg font-mono">${billTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                         </div>
 
                         {privateCoverage > 0 && (
-                            <div className="flex justify-between items-center">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-                                    <span className="text-slate-300">Private Insurance</span>
+                            <div className="space-y-1">
+                                <div className="flex justify-between items-center">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                                        <span className="text-slate-300">Private Insurance</span>
+                                    </div>
+                                    <span className="font-mono text-green-400">-${privateCoverage.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                                 </div>
-                                <span className="font-mono text-green-400">-${privateCoverage.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                {insurancePlan && (
+                                    <p className="text-xs text-purple-400 pl-5">{insurancePlan}</p>
+                                )}
                             </div>
                         )}
 
                         {publicCoverage > 0 && (
-                            <div className="flex justify-between items-center">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                                    <span className="text-slate-300">Government Aid</span>
+                            <div className="space-y-1">
+                                <div className="flex justify-between items-center">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                                        <span className="text-slate-300">Government Aid</span>
+                                    </div>
+                                    <span className="font-mono text-green-400">-${publicCoverage.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                                 </div>
-                                <span className="font-mono text-green-400">-${publicCoverage.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                {governmentProgram && (
+                                    <p className="text-xs text-orange-400 pl-5">{governmentProgram}</p>
+                                )}
                             </div>
                         )}
 
-                        <div className="flex justify-between items-center pt-4 border-t border-[#28392e]">
+                        <div className="flex justify-between items-center pt-3 border-t border-[#28392e]">
                             <span className="text-lg font-bold">You Pay</span>
-                            <span className={`text-3xl font-mono font-bold ${finalCost === 0 ? 'text-primary' : 'text-yellow-400'}`}>
+                            <span className={`text-2xl font-mono font-bold ${finalCost === 0 ? 'text-primary' : 'text-yellow-400'}`}>
                                 ${finalCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                             </span>
                         </div>
                     </div>
 
+                    {/* Coverage Details */}
+                    <div className="w-full bg-[#16211b] border border-[#28392e] rounded-2xl p-5 space-y-4">
+                        <h3 className="font-bold text-slate-300 flex items-center gap-2">
+                            <span className="material-symbols-outlined text-lg">info</span>
+                            Coverage Details
+                        </h3>
+
+                        {/* Private Insurance Details */}
+                        {privateCoverage > 0 && (
+                            <div className="space-y-2">
+                                <h4 className="text-sm font-medium text-purple-400">Private Insurance</h4>
+                                <div className="bg-[#0b120e] rounded-xl p-3 text-sm text-slate-400 space-y-1">
+                                    <p>• Coverage Rate: 80%</p>
+                                    <p>• Plan: {insurancePlan || 'Sun Life Gold Plan'}</p>
+                                    <p>• Deductible: $0 (met)</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Government Aid Details */}
+                        {publicCoverage > 0 && (
+                            <div className="space-y-2">
+                                <h4 className="text-sm font-medium text-orange-400">Government Program</h4>
+                                <div className="bg-[#0b120e] rounded-xl p-3 text-sm text-slate-400 space-y-1">
+                                    <p>• Program: {governmentProgram || (userProfile?.region === 'Ontario' ? 'Ontario Drug Benefit' : 'NY Medicaid')}</p>
+                                    <p>• Coverage: 100% of remaining balance</p>
+                                    <p>• Region: {userProfile?.region || 'Ontario'}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Eligibility Notes */}
+                        {eligibilityDetails && eligibilityDetails.length > 0 && (
+                            <div className="space-y-2">
+                                <h4 className="text-sm font-medium text-primary">Your Eligibility</h4>
+                                <div className="bg-[#0b120e] rounded-xl p-3 text-sm text-slate-400 space-y-1">
+                                    {eligibilityDetails.map((detail, i) => (
+                                        <p key={i}>{detail}</p>
+                                    ))}
+                                    {userProfile && (
+                                        <p className="text-xs text-slate-500 mt-2">
+                                            Based on: Age {userProfile.age}, {userProfile.region}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
                     {/* Actions */}
-                    <div className="flex gap-4 mt-4">
+                    <div className="flex gap-4 mt-2">
                         <button className="px-5 py-2.5 rounded-full bg-[#16211b] border border-[#3b5443] hover:border-primary transition-colors text-white font-medium flex items-center gap-2">
                             <span className="material-symbols-outlined text-lg">download</span>
                             Download
