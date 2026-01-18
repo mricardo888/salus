@@ -15,7 +15,7 @@ load_dotenv(dotenv_path=env_path)
 # =============================================================================
 # Change this to switch models across the entire project:
 # Options: gemini-3-flash-preview, gemini-3-pro-preview, gemini-2.5-flash, gemini-2.5-pro, etc.
-GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite')
+GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite-preview-09-2025')
 
 # Full model path for API calls (auto-prefixed with 'models/')
 GEMINI_MODEL_PATH = f"models/{GEMINI_MODEL}"

@@ -15,32 +15,75 @@
   --color-primary: var(--primary);
   --color-background-dark: var(--background-dark);
   --color-surface-dark: var(--surface-dark);
-  
+
   --animate-zoom-in: zoomIn 0.7s ease-out;
   --animate-pulse-glow: pulse-glow 2s infinite;
   --animate-fade-in-up: fade-in-up 0.5s ease-out;
   --animate-fade-in: fade-in 0.3s ease-out;
-  
+
   @keyframes zoomIn {
-    0% { transform: scale(0.9); opacity: 0; }
-    100% { transform: scale(1); opacity: 1; }
+    0% {
+      transform: scale(0.9);
+      opacity: 0;
+    }
+
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
   }
-  
+
   @keyframes pulse-glow {
-    0% { box-shadow: 0 0 0 0 rgba(var(--primary-rgb), 0.4); }
-    70% { box-shadow: 0 0 0 15px rgba(var(--primary-rgb), 0); }
-    100% { box-shadow: 0 0 0 0 rgba(var(--primary-rgb), 0); }
+    0% {
+      box-shadow: 0 0 0 0 rgba(var(--primary-rgb), 0.4);
+    }
+
+    70% {
+      box-shadow: 0 0 0 15px rgba(var(--primary-rgb), 0);
+    }
+
+    100% {
+      box-shadow: 0 0 0 0 rgba(var(--primary-rgb), 0);
+    }
   }
-  
+
   @keyframes fade-in-up {
-    0% { opacity: 0; transform: translateY(10px); }
-    100% { opacity: 1; transform: translateY(0); }
+    0% {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   @keyframes fade-in {
-    0% { opacity: 0; }
-    100% { opacity: 1; }
+    0% {
+      opacity: 0;
+    }
+
+    100% {
+      opacity: 1;
+    }
   }
+
+  @keyframes float {
+
+    0%,
+    100% {
+      transform: translateY(0) translateX(0);
+      opacity: 0.3;
+    }
+
+    50% {
+      transform: translateY(-20px) translateX(10px);
+      opacity: 0.6;
+    }
+  }
+
+  --animate-float: float 4s ease-in-out infinite;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -60,8 +103,8 @@ body {
 /* Material Symbols sizing */
 .material-symbols-outlined {
   font-variation-settings:
-  'FILL' 0,
-  'wght' 400,
-  'GRAD' 0,
-  'opsz' 24
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24
 }

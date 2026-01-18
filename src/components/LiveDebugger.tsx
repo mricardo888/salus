@@ -82,7 +82,6 @@ export const LiveDebugger: React.FC<LiveDebuggerProps> = ({
         if (!isAnalyzing && logs.length === 0) return 'INITIALIZING';
         if (logs.length > 0) {
             const lastLog = logs[logs.length - 1];
-            // Show a shortened version of current activity
             if (lastLog.agent === 'Adjuster') return 'ADJUSTER WORKING';
             if (lastLog.agent === 'Social Worker') return 'SOCIAL WORKER';
             if (lastLog.agent === 'Coordinator') return 'COORDINATOR';
@@ -91,14 +90,116 @@ export const LiveDebugger: React.FC<LiveDebuggerProps> = ({
         return 'RUNNING';
     };
 
+    // Get current agent for animation
+    const getCurrentAgent = () => {
+        if (logs.length > 0) {
+            const lastLog = logs[logs.length - 1];
+            return lastLog.agent;
+        }
+        return 'System';
+    };
+
     return (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex bg-black/50 backdrop-blur-sm">
+            {/* LEFT SIDE: Animation Area */}
+            <div className="flex-1 flex flex-col items-center justify-center relative overflow-hidden">
+                {/* Animated Background Rings */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <div className={`absolute w-[400px] h-[400px] rounded-full border-2 opacity-20 animate-ping ${analysisComplete ? 'border-primary' : 'border-purple-500'}`} style={{ animationDuration: '3s' }}></div>
+                    <div className={`absolute w-[300px] h-[300px] rounded-full border-2 opacity-30 animate-ping ${analysisComplete ? 'border-primary' : 'border-orange-500'}`} style={{ animationDuration: '2.5s', animationDelay: '0.5s' }}></div>
+                    <div className={`absolute w-[200px] h-[200px] rounded-full border-2 opacity-40 animate-ping ${analysisComplete ? 'border-primary' : 'border-cyan-500'}`} style={{ animationDuration: '2s', animationDelay: '1s' }}></div>
+                </div>
+
+                {/* Central Agent Icon */}
+                <div className={`relative z-10 flex flex-col items-center gap-6 ${analysisComplete ? 'animate-bounce' : ''}`}>
+                    {/* Spinning outer ring */}
+                    <div className="relative">
+                        <div className={`w-40 h-40 rounded-full border-4 ${analysisComplete ? 'border-primary' : 'border-t-purple-500 border-r-orange-500 border-b-cyan-500 border-l-primary animate-spin'}`} style={{ animationDuration: '3s' }}></div>
+
+                        {/* Inner circle with icon */}
+                        <div className={`absolute inset-4 rounded-full flex items-center justify-center ${analysisComplete ? 'bg-primary/20' : 'bg-[#16211b]'} border-2 ${analysisComplete ? 'border-primary' : 'border-[#28392e]'}`}>
+                            <span className={`material-symbols-outlined text-5xl ${analysisComplete ? 'text-primary' :
+                                    getCurrentAgent() === 'Adjuster' ? 'text-purple-400' :
+                                        getCurrentAgent() === 'Social Worker' ? 'text-orange-400' :
+                                            getCurrentAgent() === 'Coordinator' ? 'text-cyan-400' :
+                                                'text-primary'
+                                }`}>
+                                {analysisComplete ? 'check_circle' :
+                                    getCurrentAgent() === 'Adjuster' ? 'shield' :
+                                        getCurrentAgent() === 'Social Worker' ? 'volunteer_activism' :
+                                            getCurrentAgent() === 'Coordinator' ? 'hub' :
+                                                'smart_toy'}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Status Text */}
+                    <div className="text-center space-y-2">
+                        <h2 className={`text-2xl font-bold ${analysisComplete ? 'text-primary' : 'text-white'}`}>
+                            {analysisComplete ? 'Analysis Complete!' : 'Analyzing Coverage'}
+                        </h2>
+                        <p className="text-slate-400 text-sm">
+                            {analysisComplete
+                                ? 'Your coverage breakdown is ready'
+                                : `${getCurrentAgent()} is processing your claim...`}
+                        </p>
+                    </div>
+
+                    {/* Processing Steps */}
+                    <div className="flex gap-4 mt-4">
+                        {['Extractor', 'Adjuster', 'Social Worker', 'Coordinator'].map((agent, i) => {
+                            const agentIndex = logs.findIndex(l => l.agent === agent || l.agent === agent.replace(' ', ''));
+                            const isComplete = agentIndex !== -1;
+                            const isCurrent = getCurrentAgent() === agent || getCurrentAgent() === agent.split(' ')[0];
+
+                            return (
+                                <div key={agent} className="flex flex-col items-center gap-2">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 ${isComplete ? 'bg-primary/20 border-2 border-primary' :
+                                            isCurrent ? 'bg-[#16211b] border-2 border-yellow-500 animate-pulse' :
+                                                'bg-[#16211b] border-2 border-[#28392e]'
+                                        }`}>
+                                        <span className={`material-symbols-outlined text-lg ${isComplete ? 'text-primary' :
+                                                isCurrent ? 'text-yellow-500' :
+                                                    'text-slate-600'
+                                            }`}>
+                                            {isComplete ? 'check' : (i + 1).toString()}
+                                        </span>
+                                    </div>
+                                    <span className={`text-xs ${isComplete ? 'text-primary' : isCurrent ? 'text-yellow-400' : 'text-slate-600'}`}>
+                                        {agent.split(' ')[0]}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Floating particles */}
+                {!analysisComplete && (
+                    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                        {[...Array(20)].map((_, i) => (
+                            <div
+                                key={i}
+                                className="absolute w-2 h-2 rounded-full bg-primary/30 animate-float"
+                                style={{
+                                    left: `${Math.random() * 100}%`,
+                                    top: `${Math.random() * 100}%`,
+                                    animationDuration: `${3 + Math.random() * 4}s`,
+                                    animationDelay: `${Math.random() * 2}s`
+                                }}
+                            />
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* RIGHT SIDE: Log Panel */}
             <div className="w-full max-w-xl h-full bg-[#0b120e] border-l border-[#28392e] shadow-2xl flex flex-col animate-slide-in-right">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-[#28392e] flex items-center justify-between bg-[#111813]">
                     <div className="flex items-center gap-3">
                         <div className={`size-2 rounded-full ${analysisComplete ? 'bg-primary' : 'bg-red-500 animate-pulse'}`}></div>
-                        <h3 className="font-mono text-sm font-bold text-white uppercase tracking-widest">Actuary Agent Live View</h3>
+                        <h3 className="font-mono text-sm font-bold text-white uppercase tracking-widest">Agent Live View</h3>
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="text-xs text-slate-500 font-mono">{new Date().toLocaleTimeString()}</span>
@@ -159,7 +260,7 @@ export const LiveDebugger: React.FC<LiveDebuggerProps> = ({
                     ) : (
                         <div className="flex items-center justify-center gap-3 text-slate-400">
                             <div className="animate-spin size-4 border-2 border-primary border-t-transparent rounded-full"></div>
-                            <span className="text-sm">Analyzing coverage... {logs.length} steps completed</span>
+                            <span className="text-sm">Processing... {logs.length} steps completed</span>
                         </div>
                     )}
                 </div>

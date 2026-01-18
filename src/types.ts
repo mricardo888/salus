@@ -17,4 +17,7 @@ export interface UserProfile {
   age: number;
   gender: 'male' | 'female' | 'other' | 'prefer_not_to_say';
   region: 'Ontario' | 'New York';
+  hasPrivateInsurance: boolean;
+  policyNumber?: string;
+  insuranceProvider?: string;
 }

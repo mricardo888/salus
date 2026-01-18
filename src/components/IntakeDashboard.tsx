@@ -117,7 +117,6 @@ export const IntakeDashboard: React.FC<IntakeDashboardProps> = ({ onAnalyze, pol
 
         if (inputText.toLowerCase().includes('yes') || inputText.toLowerCase().includes('confirm') || inputText.toLowerCase().includes('correct')) {
             setHasConfirmed(true);
-            setTimeout(() => setShowAnalysisButton(true), 2000);
         }
 
         try {
@@ -152,6 +151,17 @@ export const IntakeDashboard: React.FC<IntakeDashboardProps> = ({ onAnalyze, pol
                 timestamp: Date.now()
             };
             setMessages(prev => [...prev, modelMsg]);
+
+            // Check if AI indicates user is ready for analysis
+            // Look for keywords that suggest readiness OR check conditions
+            const lowerResponse = responseText.toLowerCase();
+            const readyKeywords = ['ready', 'analyze', 'proceed', 'calculate', 'let\'s', 'sounds good', 'perfect', 'great', 'understood', 'got it', 'correct', 'confirmed', 'yes'];
+            const aiIndicatesReady = readyKeywords.some(keyword => lowerResponse.includes(keyword));
+
+            // Show button if: AI response suggests readiness, OR bill uploaded and user confirmed
+            if (aiIndicatesReady || (hasBillUploaded && hasConfirmed)) {
+                setShowAnalysisButton(true);
+            }
 
             // Speak response
             speak(responseText);

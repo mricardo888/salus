@@ -52,10 +52,28 @@ export const ReliefResults: React.FC<ReliefResultsProps> = ({
             } else {
                 details.push('✓ Eligible for NY EPIC (seniors 65+)');
             }
-        } else if (userProfile.age < 25) {
+        } else if (userProfile.age < 25 && !userProfile.hasPrivateInsurance) {
+            // OHIP+ only for those WITHOUT private insurance
             if (userProfile.region === 'Ontario') {
-                details.push('✓ Eligible for OHIP+ (under 25)');
+                details.push('✓ Eligible for OHIP+ (under 25, no private insurance)');
             }
+        }
+
+        // Show insurance provider if they have one
+        if (userProfile.hasPrivateInsurance && userProfile.insuranceProvider) {
+            const providerNames: Record<string, string> = {
+                'sun_life': 'Sun Life Financial',
+                'manulife': 'Manulife',
+                'great_west': 'Great-West Life',
+                'blue_cross': 'Blue Cross',
+                'desjardins': 'Desjardins Insurance',
+                'canada_life': 'Canada Life',
+                'cigna': 'Cigna',
+                'aetna': 'Aetna',
+                'united_health': 'UnitedHealthcare',
+                'other': 'Private Insurance'
+            };
+            details.push(`✓ Private insurance: ${providerNames[userProfile.insuranceProvider] || userProfile.insuranceProvider}`);
         }
 
         return details;
@@ -226,13 +244,27 @@ export const ReliefResults: React.FC<ReliefResultsProps> = ({
                         </h3>
 
                         {/* Private Insurance Details */}
-                        {privateCoverage > 0 && (
+                        {privateCoverage > 0 && userProfile?.hasPrivateInsurance && (
                             <div className="space-y-2">
                                 <h4 className="text-sm font-medium text-purple-400">Private Insurance</h4>
                                 <div className="bg-[#0b120e] rounded-xl p-3 text-sm text-slate-400 space-y-1">
                                     <p>• Coverage Rate: 80%</p>
-                                    <p>• Plan: {insurancePlan || 'Sun Life Gold Plan'}</p>
-                                    <p>• Deductible: $0 (met)</p>
+                                    <p>• Provider: {(() => {
+                                        const providerNames: Record<string, string> = {
+                                            'sun_life': 'Sun Life Financial',
+                                            'manulife': 'Manulife',
+                                            'great_west': 'Great-West Life',
+                                            'blue_cross': 'Blue Cross',
+                                            'desjardins': 'Desjardins Insurance',
+                                            'canada_life': 'Canada Life',
+                                            'cigna': 'Cigna',
+                                            'aetna': 'Aetna',
+                                            'united_health': 'UnitedHealthcare',
+                                            'other': 'Private Insurer'
+                                        };
+                                        return providerNames[userProfile?.insuranceProvider || ''] || insurancePlan || 'Private Insurance';
+                                    })()}</p>
+                                    <p>• Policy: {userProfile?.policyNumber || 'On file'}</p>
                                 </div>
                             </div>
                         )}
