@@ -205,6 +205,202 @@ def get_coverage_summary() -> Dict[str, Any]:
         return {"connected": False, "error": str(e)}
 
 
+# ============== USER PROFILE FUNCTIONS ==============
+
+def get_or_create_user(passkey_id: str) -> Optional[Dict]:
+    """
+    Get or create a user by their passkey credential ID.
+    This is the unique identifier derived from WebAuthn.
+    """
+    db = get_db()
+    if db is None or not passkey_id:
+        return None
+    
+    try:
+        from datetime import datetime, timezone
+        collection = db.users
+        
+        # Try to find existing user
+        user = collection.find_one({"passkey_id": passkey_id})
+        
+        if user:
+            user.pop('_id', None)
+            return user
+        
+        # Create new user if not found
+        new_user = {
+            "passkey_id": passkey_id,
+            "profile": None,  # Will be filled in by profile form
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc)
+        }
+        collection.insert_one(new_user)
+        new_user.pop('_id', None)
+        print(f"✅ Created new user for passkey {passkey_id[:16]}...")
+        return new_user
+        
+    except Exception as e:
+        print(f"Error in get_or_create_user: {e}")
+        return None
+
+
+def update_user_profile(passkey_id: str, profile: Dict) -> bool:
+    """
+    Update or set the user's profile data.
+    """
+    db = get_db()
+    if db is None or not passkey_id:
+        return False
+    
+    try:
+        from datetime import datetime, timezone
+        result = db.users.update_one(
+            {"passkey_id": passkey_id},
+            {
+                "$set": {
+                    "profile": profile,
+                    "updated_at": datetime.now(timezone.utc)
+                }
+            },
+            upsert=True  # Create if doesn't exist
+        )
+        print(f"✅ Updated profile for passkey {passkey_id[:16]}...")
+        return result.modified_count > 0 or result.upserted_id is not None
+    except Exception as e:
+        print(f"Error updating user profile: {e}")
+        return False
+
+
+def get_user_profile(passkey_id: str) -> Optional[Dict]:
+    """
+    Get just the profile portion for a user.
+    """
+    user = get_or_create_user(passkey_id)
+    if user:
+        return user.get('profile')
+    return None
+
+
+# ============== BILL HISTORY FUNCTIONS ==============
+
+def save_bill_analysis(passkey_id: str, bill_data: Dict, analysis_result: Dict) -> bool:
+    """
+    Save an analyzed bill to the user's history.
+    """
+    db = get_db()
+    if db is None or not passkey_id:
+        return False
+    
+    try:
+        from datetime import datetime, timezone
+        bill_record = {
+            "passkey_id": passkey_id,
+            "bill_data": bill_data,
+            "analysis_result": {
+                "bill_total": analysis_result.get('bill_total', 0),
+                "private_coverage": analysis_result.get('private_coverage', 0),
+                "public_coverage": analysis_result.get('public_coverage', 0),
+                "final_cost": analysis_result.get('final_cost', 0),
+            },
+            "created_at": datetime.now(timezone.utc)
+        }
+        db.bill_history.insert_one(bill_record)
+        print(f"✅ Saved bill analysis for passkey {passkey_id[:16]}...")
+        return True
+    except Exception as e:
+        print(f"Error saving bill analysis: {e}")
+        return False
+
+
+def get_user_bill_history(passkey_id: str, limit: int = 20) -> List[Dict]:
+    """
+    Get the user's bill history, most recent first.
+    """
+    db = get_db()
+    if db is None or not passkey_id:
+        return []
+    
+    try:
+        bills = list(
+            db.bill_history.find({"passkey_id": passkey_id})
+            .sort("created_at", -1)
+            .limit(limit)
+        )
+        for bill in bills:
+            bill.pop('_id', None)
+            # Convert datetime to ISO string for JSON serialization
+            if 'created_at' in bill:
+                bill['created_at'] = bill['created_at'].isoformat()
+        return bills
+    except Exception as e:
+        print(f"Error getting bill history: {e}")
+        return []
+
+
+def get_user_uploaded_files(passkey_id: str) -> Dict:
+    """
+    Get the most recent uploaded file data for a user session.
+    Stored in a separate collection for pending uploads before analysis.
+    """
+    db = get_db()
+    if db is None or not passkey_id:
+        return {}
+    
+    try:
+        record = db.pending_uploads.find_one({"passkey_id": passkey_id})
+        if record:
+            record.pop('_id', None)
+            return record
+        return {}
+    except Exception as e:
+        print(f"Error getting uploaded files: {e}")
+        return {}
+
+
+def save_user_uploaded_files(passkey_id: str, file_data: Dict, bill_data: Dict) -> bool:
+    """
+    Save uploaded file data for the current user session (before analysis).
+    """
+    db = get_db()
+    if db is None or not passkey_id:
+        return False
+    
+    try:
+        from datetime import datetime, timezone
+        db.pending_uploads.update_one(
+            {"passkey_id": passkey_id},
+            {
+                "$set": {
+                    "passkey_id": passkey_id,
+                    "file_data": file_data,
+                    "bill_data": bill_data,
+                    "updated_at": datetime.now(timezone.utc)
+                }
+            },
+            upsert=True
+        )
+        return True
+    except Exception as e:
+        print(f"Error saving uploaded files: {e}")
+        return False
+
+
+def clear_user_pending_upload(passkey_id: str) -> bool:
+    """
+    Clear pending upload after analysis is complete.
+    """
+    db = get_db()
+    if db is None or not passkey_id:
+        return False
+    
+    try:
+        db.pending_uploads.delete_one({"passkey_id": passkey_id})
+        return True
+    except Exception as e:
+        print(f"Error clearing pending upload: {e}")
+        return False
+
+
 # Test connection on import
 if __name__ == "__main__":
     db = get_db()

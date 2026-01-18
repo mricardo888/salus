@@ -8,9 +8,22 @@ import { API_URL } from '@/config/api';
 interface IntakeDashboardProps {
     onAnalyze: () => void;
     policyId: string;
+    passkeyUserId: string | null;  // Passkey credential ID for user data isolation
 }
 
-export const IntakeDashboard: React.FC<IntakeDashboardProps> = ({ onAnalyze, policyId }) => {
+interface BillHistoryItem {
+    bill_data: {
+        service?: string;
+        services?: string[];
+        date?: string;
+    };
+    analysis_result: {
+        final_cost: number;
+    };
+    created_at: string;
+}
+
+export const IntakeDashboard: React.FC<IntakeDashboardProps> = ({ onAnalyze, policyId, passkeyUserId }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]); // Start empty
     const [inputText, setInputText] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
@@ -22,6 +35,7 @@ export const IntakeDashboard: React.FC<IntakeDashboardProps> = ({ onAnalyze, pol
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [hasBillUploaded, setHasBillUploaded] = useState(false);
     const [isListening, setIsListening] = useState(false);
+    const [billHistory, setBillHistory] = useState<BillHistoryItem[]>([]);  // Real bill history from MongoDB
     const chatEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { speak } = useElevenLabs();
@@ -29,6 +43,20 @@ export const IntakeDashboard: React.FC<IntakeDashboardProps> = ({ onAnalyze, pol
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
+
+    // Load bill history when component mounts or passkeyUserId changes
+    useEffect(() => {
+        if (passkeyUserId) {
+            fetch(`${API_URL}/api/bills?passkey_id=${encodeURIComponent(passkeyUserId)}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.bills) {
+                        setBillHistory(data.bills);
+                    }
+                })
+                .catch(err => console.error('Failed to load bill history:', err));
+        }
+    }, [passkeyUserId]);
 
     const handleUploadClick = () => {
         fileInputRef.current?.click();
@@ -42,6 +70,10 @@ export const IntakeDashboard: React.FC<IntakeDashboardProps> = ({ onAnalyze, pol
 
         const formData = new FormData();
         formData.append("file", file);
+        // Include passkey_id in upload for user-specific storage
+        if (passkeyUserId) {
+            formData.append("passkey_id", passkeyUserId);
+        }
 
         try {
             // First upload the file and get extracted data
@@ -77,7 +109,8 @@ export const IntakeDashboard: React.FC<IntakeDashboardProps> = ({ onAnalyze, pol
                     body: JSON.stringify({
                         policy_id: policyId,
                         message: extractedInfo,
-                        history: []
+                        history: [],
+                        passkey_id: passkeyUserId  // Include passkey for user context
                     })
                 });
 
@@ -134,7 +167,8 @@ export const IntakeDashboard: React.FC<IntakeDashboardProps> = ({ onAnalyze, pol
                 body: JSON.stringify({
                     policy_id: policyId,
                     message: inputText,
-                    history: history
+                    history: history,
+                    passkey_id: passkeyUserId  // Include passkey for user context
                 })
             });
 
@@ -348,33 +382,32 @@ export const IntakeDashboard: React.FC<IntakeDashboardProps> = ({ onAnalyze, pol
                             </button>
                         </div>
                         <div className="p-4 space-y-3 max-h-80 overflow-y-auto">
-                            <div className="p-3 bg-[#0b120e] rounded-xl border border-[#28392e]">
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <p className="font-medium text-white">Prescription - Metformin</p>
-                                        <p className="text-xs text-slate-400">Jan 15, 2026</p>
-                                    </div>
-                                    <span className="text-primary font-mono text-sm">$0.00</span>
+                            {billHistory.length > 0 ? (
+                                billHistory.map((bill, index) => {
+                                    const serviceName = bill.bill_data?.services?.[0] || bill.bill_data?.service || 'Medical Service';
+                                    const dateStr = bill.created_at ? new Date(bill.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown';
+                                    const finalCost = bill.analysis_result?.final_cost || 0;
+                                    return (
+                                        <div key={index} className="p-3 bg-[#0b120e] rounded-xl border border-[#28392e]">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <p className="font-medium text-white">{serviceName}</p>
+                                                    <p className="text-xs text-slate-400">{dateStr}</p>
+                                                </div>
+                                                <span className={`font-mono text-sm ${finalCost === 0 ? 'text-primary' : 'text-yellow-400'}`}>
+                                                    ${finalCost.toFixed(2)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            ) : (
+                                <div className="text-center text-slate-500 py-8">
+                                    <span className="material-symbols-outlined text-4xl mb-2">receipt_long</span>
+                                    <p>No bill history yet</p>
+                                    <p className="text-xs mt-1">Upload and analyze a bill to see it here</p>
                                 </div>
-                            </div>
-                            <div className="p-3 bg-[#0b120e] rounded-xl border border-[#28392e]">
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <p className="font-medium text-white">Lab Work - Blood Test</p>
-                                        <p className="text-xs text-slate-400">Jan 10, 2026</p>
-                                    </div>
-                                    <span className="text-primary font-mono text-sm">$0.00</span>
-                                </div>
-                            </div>
-                            <div className="p-3 bg-[#0b120e] rounded-xl border border-[#28392e]">
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <p className="font-medium text-white">Specialist Visit</p>
-                                        <p className="text-xs text-slate-400">Jan 5, 2026</p>
-                                    </div>
-                                    <span className="text-yellow-400 font-mono text-sm">$25.00</span>
-                                </div>
-                            </div>
+                            )}
                         </div>
                     </div>
                 </div>

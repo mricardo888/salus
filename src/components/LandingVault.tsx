@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 
 interface LandingVaultProps {
-    onUnlock: () => void;
+    onUnlock: (passkeyId: string) => void;  // Now passes the passkey credential ID
 }
 
 // Check if WebAuthn is supported
@@ -101,8 +101,8 @@ export const LandingVault: React.FC<LandingVaultProps> = ({ onUnlock }) => {
                 console.log("✅ Passkey registered successfully!");
                 console.log("Credential ID:", credentialId);
 
-                // Proceed to unlock
-                onUnlock();
+                // Proceed to unlock with the passkey ID
+                onUnlock(credentialId);
             }
         } catch (err: any) {
             console.error("Passkey registration error:", err);
@@ -149,10 +149,11 @@ export const LandingVault: React.FC<LandingVaultProps> = ({ onUnlock }) => {
 
             if (assertion) {
                 console.log("✅ Passkey authentication successful!");
-                console.log("Credential ID:", bufferToBase64(assertion.rawId));
+                const credentialId = bufferToBase64(assertion.rawId);
+                console.log("Credential ID:", credentialId);
 
-                // Proceed to unlock
-                onUnlock();
+                // Proceed to unlock with the passkey ID
+                onUnlock(credentialId);
             }
         } catch (err: any) {
             console.error("Passkey authentication error:", err);
@@ -177,7 +178,10 @@ export const LandingVault: React.FC<LandingVaultProps> = ({ onUnlock }) => {
     const handleFallbackUnlock = async () => {
         setIsClassified(true);
         await new Promise(resolve => setTimeout(resolve, 1500));
-        onUnlock();
+        // Generate a demo passkey ID for fallback mode
+        const demoPasskeyId = 'demo_' + Math.random().toString(36).substring(2, 15);
+        localStorage.setItem('salus_passkey_credential', demoPasskeyId);
+        onUnlock(demoPasskeyId);
     };
 
     return (

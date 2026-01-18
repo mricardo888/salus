@@ -2,12 +2,13 @@
 Salus API - FastAPI Backend
 Provides endpoints for chat, file upload, and benefit analysis
 """
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage, AIMessage
+from typing import Optional
 import os
 from dotenv import load_dotenv
 from pathlib import Path
@@ -47,6 +48,13 @@ if static_path.exists():
 # Import agents
 from agent import chat_graph, analysis_graph
 
+# Import database functions for user data
+from database import (
+    get_or_create_user, update_user_profile, get_user_profile,
+    save_bill_analysis, get_user_bill_history,
+    get_user_uploaded_files, save_user_uploaded_files, clear_user_pending_upload
+)
+
 # Request Models
 class HistoryItem(BaseModel):
     role: str
@@ -57,14 +65,20 @@ class ChatRequest(BaseModel):
     message: str
     region: str = "Ontario"
     history: list[HistoryItem] = []
+    passkey_id: Optional[str] = None  # Added for user identification
 
 class AnalyzeRequest(BaseModel):
     policy_id: str
     region: str = "Ontario"
     bill_total: float = 5000.0
     service_type: str = "Emergency Room Visit"
+    passkey_id: Optional[str] = None  # Added for user identification
 
-# Store for uploaded files (in-memory for demo)
+class UserProfileRequest(BaseModel):
+    passkey_id: str
+    profile: Optional[dict] = None  # If provided, update profile
+
+# Store for uploaded files (in-memory fallback when no passkey_id)
 uploaded_files = {}
 
 # === ENDPOINTS ===
@@ -74,8 +88,76 @@ async def root():
     return {"status": "online", "service": "Salus Backend", "version": "1.0.0"}
 
 
+# === USER ENDPOINTS ===
+
+@app.post("/api/user")
+async def user_endpoint(request: UserProfileRequest):
+    """Get or update user profile by passkey ID"""
+    if not request.passkey_id:
+        raise HTTPException(status_code=400, detail="passkey_id is required")
+    
+    try:
+        if request.profile:
+            # Update user profile
+            success = update_user_profile(request.passkey_id, request.profile)
+            user = get_or_create_user(request.passkey_id)
+            return {
+                "success": success,
+                "user": user,
+                "message": "Profile updated successfully"
+            }
+        else:
+            # Get or create user
+            user = get_or_create_user(request.passkey_id)
+            return {
+                "success": user is not None,
+                "user": user,
+                "message": "User retrieved successfully"
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/user")
+async def get_user(passkey_id: str = Query(..., description="Passkey credential ID")):
+    """Get user profile by passkey ID"""
+    if not passkey_id:
+        raise HTTPException(status_code=400, detail="passkey_id is required")
+    
+    try:
+        user = get_or_create_user(passkey_id)
+        return {
+            "success": user is not None,
+            "user": user
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/bills")
+async def get_bills(passkey_id: str = Query(..., description="Passkey credential ID")):
+    """Get user's bill history"""
+    if not passkey_id:
+        raise HTTPException(status_code=400, detail="passkey_id is required")
+    
+    try:
+        bills = get_user_bill_history(passkey_id)
+        return {
+            "success": True,
+            "bills": bills,
+            "count": len(bills)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# === FILE UPLOAD ENDPOINT ===
+
 @app.post("/api/upload")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(
+    file: UploadFile = File(...),
+    passkey_id: Optional[str] = Form(None)
+):
     """Upload a hospital bill and analyze it with Gemini Vision"""
     try:
         file_location = f"uploads/{file.filename}"
@@ -85,8 +167,7 @@ async def upload_file(file: UploadFile = File(...)):
         with open(file_location, "wb") as f:
             f.write(content)
         
-        # Store file reference
-        uploaded_files['latest'] = {
+        file_data = {
             'filename': file.filename,
             'path': file_location,
             'size': len(content)
@@ -193,7 +274,14 @@ RULES:
                 # Fall back to filename-based guess
                 extracted_data['service'] = 'Medical Services (analysis pending)'
         
-        uploaded_files['bill_data'] = extracted_data
+        # Store data based on whether we have a passkey_id
+        if passkey_id:
+            # Store in MongoDB for this user
+            save_user_uploaded_files(passkey_id, file_data, extracted_data)
+        else:
+            # Fallback to in-memory storage
+            uploaded_files['latest'] = file_data
+            uploaded_files['bill_data'] = extracted_data
         
         return {
             "filename": file.filename, 
@@ -206,21 +294,32 @@ RULES:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# === CHAT ENDPOINT ===
+
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
     """Chat with the Salus AI agent"""
+    
+    # Get bill data from user's MongoDB storage or fallback to in-memory
+    if request.passkey_id:
+        user_uploads = get_user_uploaded_files(request.passkey_id)
+        bill_data = user_uploads.get('bill_data', {})
+        file_path = user_uploads.get('file_data', {}).get('path')
+    else:
+        bill_data = uploaded_files.get('bill_data', {})
+        file_path = uploaded_files.get('latest', {}).get('path')
     
     initial_state = {
         "messages": [],
         "user_message": request.message,
         "policy_id": request.policy_id,
         "region": request.region,
-        "bill_data": uploaded_files.get('bill_data', {}),
+        "bill_data": bill_data,
         "private_coverage": 0.0,
         "public_coverage": 0.0,
         "final_cost": 0.0,
         "logs": [],
-        "file_path": uploaded_files.get('latest', {}).get('path'),
+        "file_path": file_path,
         "analysis_complete": False,
         "history": [{"role": h.role, "content": h.content} for h in request.history]
     }
@@ -245,12 +344,21 @@ async def chat_endpoint(request: ChatRequest):
         }
 
 
+# === ANALYSIS ENDPOINT ===
+
 @app.post("/api/analyze")
 async def analyze_endpoint(request: AnalyzeRequest):
     """Run the full 4-node Coordination of Benefits analysis using real bill data"""
     
-    # Use real bill data from upload, or fallback to request params
-    real_bill_data = uploaded_files.get('bill_data', {})
+    # Get bill data from user's MongoDB storage or fallback
+    if request.passkey_id:
+        user_uploads = get_user_uploaded_files(request.passkey_id)
+        real_bill_data = user_uploads.get('bill_data', {})
+        file_path = user_uploads.get('file_data', {}).get('path')
+    else:
+        real_bill_data = uploaded_files.get('bill_data', {})
+        file_path = uploaded_files.get('latest', {}).get('path')
+    
     if not real_bill_data.get('total'):
         real_bill_data = {"total": request.bill_total, "service": request.service_type}
     
@@ -264,7 +372,7 @@ async def analyze_endpoint(request: AnalyzeRequest):
         "public_coverage": 0.0,
         "final_cost": 0.0,
         "logs": [],
-        "file_path": uploaded_files.get('latest', {}).get('path'),
+        "file_path": file_path,
         "analysis_complete": True,
         "history": []
     }
@@ -274,7 +382,7 @@ async def analyze_endpoint(request: AnalyzeRequest):
         
         bill_total = result.get('bill_data', {}).get('total', 0)
         
-        return {
+        analysis_result = {
             "bill_total": bill_total,
             "private_coverage": result.get('private_coverage', 0),
             "public_coverage": result.get('public_coverage', 0),
@@ -282,15 +390,34 @@ async def analyze_endpoint(request: AnalyzeRequest):
             "logs": result.get('logs', []),
             "summary": f"After coordinating benefits, you pay: ${result.get('final_cost', 0):,.2f}"
         }
+        
+        # Save to user's bill history if we have a passkey_id
+        if request.passkey_id and real_bill_data.get('uploaded'):
+            save_bill_analysis(request.passkey_id, real_bill_data, analysis_result)
+            # Clear the pending upload since it's now in history
+            clear_user_pending_upload(request.passkey_id)
+        
+        return analysis_result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# === STATUS ENDPOINT ===
+
 @app.get("/api/status")
-async def status_endpoint():
+async def status_endpoint(passkey_id: Optional[str] = Query(None)):
     """Get current session status"""
+    if passkey_id:
+        user_uploads = get_user_uploaded_files(passkey_id)
+        has_file = bool(user_uploads.get('file_data'))
+        filename = user_uploads.get('file_data', {}).get('filename')
+    else:
+        has_file = 'latest' in uploaded_files
+        filename = uploaded_files.get('latest', {}).get('filename')
+    
     return {
-        "has_uploaded_file": 'latest' in uploaded_files,
-        "uploaded_file": uploaded_files.get('latest', {}).get('filename'),
-        "ready_for_analysis": 'latest' in uploaded_files
+        "has_uploaded_file": has_file,
+        "uploaded_file": filename,
+        "ready_for_analysis": has_file
     }
+

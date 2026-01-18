@@ -27,15 +27,52 @@ export default function Home() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisComplete, setAnalysisComplete] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [passkeyUserId, setPasskeyUserId] = useState<string | null>(null);
 
   // Generate a unique Policy ID for this session
   const [policyId] = useState(() => '88' + Math.floor(Math.random() * 9000000 + 1000000).toString());
 
   // Transition Helpers
-  const goToProfile = () => setCurrentView(AppView.PROFILE);
+  const goToProfile = (passkeyId: string) => {
+    setPasskeyUserId(passkeyId);
+    // Check if user already has a profile
+    fetch(`${API_URL}/api/user?passkey_id=${encodeURIComponent(passkeyId)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.user?.profile) {
+          // User already has a profile, skip to dashboard
+          setUserProfile(data.user.profile);
+          setCurrentView(AppView.DASHBOARD);
+        } else {
+          // New user, show profile form
+          setCurrentView(AppView.PROFILE);
+        }
+      })
+      .catch(() => {
+        // On error, show profile form anyway
+        setCurrentView(AppView.PROFILE);
+      });
+  };
 
-  const handleProfileComplete = (profile: UserProfile) => {
+  const handleProfileComplete = async (profile: UserProfile) => {
     setUserProfile(profile);
+
+    // Save profile to MongoDB if we have a passkey ID
+    if (passkeyUserId) {
+      try {
+        await fetch(`${API_URL}/api/user`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            passkey_id: passkeyUserId,
+            profile: profile
+          })
+        });
+      } catch (e) {
+        console.error('Failed to save profile:', e);
+      }
+    }
+
     setCurrentView(AppView.DASHBOARD);
   };
 
@@ -76,7 +113,8 @@ export default function Home() {
           policy_id: policyId,
           region: userProfile?.region || 'Ontario',
           age: userProfile?.age || 30,
-          gender: userProfile?.gender || 'prefer_not_to_say'
+          gender: userProfile?.gender || 'prefer_not_to_say',
+          passkey_id: passkeyUserId  // Include passkey ID for user-specific data
         })
       });
 
@@ -140,7 +178,11 @@ export default function Home() {
           <UserProfileForm onComplete={handleProfileComplete} />
         )}
         {currentView === AppView.DASHBOARD && (
-          <IntakeDashboard onAnalyze={runActuaryEngine} policyId={policyId} />
+          <IntakeDashboard
+            onAnalyze={runActuaryEngine}
+            policyId={policyId}
+            passkeyUserId={passkeyUserId}
+          />
         )}
         {currentView === AppView.DEBUGGER && (
           <LiveDebugger
