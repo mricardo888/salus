@@ -158,9 +158,20 @@ export const LandingVault: React.FC<LandingVaultProps> = ({ onUnlock }) => {
         } catch (err: any) {
             console.error("Passkey authentication error:", err);
             if (err.name === 'NotAllowedError') {
-                setError("Authentication was cancelled or denied");
+                // Check if the passkey doesn't exist anymore
+                if (err.message?.includes('no passkey') || err.message?.includes('not found')) {
+                    // Clear the stale credential and prompt re-registration
+                    localStorage.removeItem('salus_passkey_credential');
+                    setIsRegistered(false);
+                    setError("Passkey not found. Please create a new one.");
+                } else {
+                    setError("Authentication was cancelled or denied");
+                }
             } else {
-                setError(err.message || "Failed to authenticate");
+                // For other errors (like no matching credential), clear and retry
+                localStorage.removeItem('salus_passkey_credential');
+                setIsRegistered(false);
+                setError("Passkey not found on this device. Please register again.");
             }
             setIsClassified(false);
         }
