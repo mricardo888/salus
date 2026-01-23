@@ -2,7 +2,8 @@
 **The privacy-first 'Coordination of Benefits' engine.**
 
 [![Hackathon](https://img.shields.io/badge/UofTHacks-13-blue)](https://uofthacks.com)
-[![Domain](https://img.shields.io/badge/Live-salus--app.tech-orange)](https://salus-app.tech)
+[![Devpost](https://img.shields.io/badge/Devpost-Project_Page-003E54)](https://devpost.com/software/salus-9javs3)
+[![Award](https://img.shields.io/badge/Winner-Best_Use_of_MongoDB_Atlas-green)](https://mongodb.com)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 > *"Financial toxicity is the new medical crisis."*
@@ -29,11 +30,11 @@ Salus is a **Universal Benefits Engine** that operates on a Zero-Trust architect
 We used a **Local-First, Hybrid-Cloud Architecture**:
 
 ### **The Stack**
-* **Frontend:** Next.js, Tailwind CSS, `@1password/passkey-js`.
+* **Frontend:** Next.js, Tailwind CSS, WebAuthn (Native).
 * **Backend:** Python FastAPI, LangGraph.
 * **AI Models:** Google Gemini 1.5 Pro (Reasoning), ElevenLabs (Voice), OpenAI Whisper (STT).
 * **Database:** MongoDB Atlas (Vector Search for Laws + Document Store for Insurance Plans).
-* **DevOps:** Vercel (Hosting), Domain.com (`.tech` domain).
+* **DevOps:** Vercel (Hosting).
 
 ### **The Architecture**
 ```mermaid
@@ -117,9 +118,8 @@ Open `http://localhost:3000` and unlock the vault!
 * **Foresters:** Multi-Agent Orchestration (LangGraph + Debug Panel).
 * **1Password:** Best Security Hack (Local Decryption via Passkeys).
 * **Google:** Best Use of Gemini (Long-Context Policy Analysis).
-* **MongoDB:** Best Use of Atlas (Vector Search + Hybrid Data).
+* **MongoDB:** 🏆 **WINNER: Best Use of MongoDB Atlas** (Vector Search + Hybrid Data).
 * **ElevenLabs:** Best Voice AI (Streaming WebSockets).
-* **Domain.com:** Best .Tech Domain (`salus-app.tech`).
 
 ## 👥 The Team
 
